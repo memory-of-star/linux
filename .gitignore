@@ -173,3 +173,12 @@ sphinx_*/
 
 # Rust analyzer configuration
 /rust-project.json
+
+modules.builtin
+tools/bpf/resolve_btfids/libsubcmd/include/subcmd/exec-cmd.h
+tools/bpf/resolve_btfids/libsubcmd/include/subcmd/run-command.h
+tools/bpf/resolve_btfids/libsubcmd/include/subcmd/parse-options.h
+tools/bpf/resolve_btfids/libsubcmd/include/subcmd/pager.h
+tools/bpf/resolve_btfids/libsubcmd/include/subcmd/help.h
+scripts/sortextable
+scripts/conmakehash
