@@ -2631,5 +2631,69 @@ out:
 	put_page(page);
 	return 0;
 }
+
+
+
+/*
+ * Attempt to migrate a misplaced page to the specified destination
+ * node. Caller is expected to have an elevated reference count on
+ * the page that will be dropped by this function before returning.
+ */
+int migrate_misplaced_page_no_vma(struct page *page, int node)
+{
+	pg_data_t *pgdat = NODE_DATA(node);
+	int isolated;
+	int nr_remaining;
+	unsigned int nr_succeeded;
+	LIST_HEAD(migratepages);
+	int nr_pages = thp_nr_pages(page);
+
+	// /*
+	//  * Don't migrate file pages that are mapped in multiple processes
+	//  * with execute permissions as they are probably shared libraries.
+	//  */
+	// if (page_mapcount(page) != 1 && page_is_file_lru(page) &&
+	//     (vma->vm_flags & VM_EXEC))
+	// 	goto out;
+
+	/*
+	 * Also do not migrate dirty pages as not all filesystems can move
+	 * dirty pages in MIGRATE_ASYNC mode which is a waste of cycles.
+	 */
+	if (page_is_file_lru(page) && PageDirty(page))
+		goto out;
+
+	isolated = numamigrate_isolate_page(pgdat, page);
+	if (!isolated)
+		goto out;
+
+	list_add(&page->lru, &migratepages);
+	nr_remaining = migrate_pages(&migratepages, alloc_misplaced_dst_page,
+				     NULL, node, MIGRATE_ASYNC,
+				     MR_NUMA_MISPLACED, &nr_succeeded);
+	if (nr_remaining) {
+		if (!list_empty(&migratepages)) {
+			list_del(&page->lru);
+			mod_node_page_state(page_pgdat(page), NR_ISOLATED_ANON +
+					page_is_file_lru(page), -nr_pages);
+			putback_lru_page(page);
+		}
+		isolated = 0;
+	}
+	if (nr_succeeded) {
+		count_vm_numa_events(NUMA_PAGE_MIGRATE, nr_succeeded);
+		if (!node_is_toptier(page_to_nid(page)) && node_is_toptier(node))
+			mod_node_page_state(pgdat, PGPROMOTE_SUCCESS,
+					    nr_succeeded);
+	}
+	BUG_ON(!list_empty(&migratepages));
+	return isolated;
+
+out:
+	put_page(page);
+	return 0;
+}
+
+
 #endif /* CONFIG_NUMA_BALANCING */
 #endif /* CONFIG_NUMA */

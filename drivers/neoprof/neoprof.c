@@ -1,6 +1,7 @@
 #include "neoprof.h"
 
-#define NEOPROFILER_MMIO_BASE 0x20feffa00000L
+// #define NEOPROFILER_MMIO_BASE 0x20feffa00000L
+#define NEOPROFILER_MMIO_BASE 0x2000L
 #define NEOPROFILER_REGION_SIZE 0x1000
 
 #define REG_STATUS          0x00
@@ -54,9 +55,10 @@ u64 get_nr_hotpages(void)
 /*
  * Read out the addresses of hot pages in CXL memory TODO: how to read out the addresses of hot pages in DRAM
  */
-u64 * get_hotpages(void)
+u64 get_hotpage(void)
 {
-    return (u64 *)mmio_base + REG_DATA;
+    volatile u64 hp_addr = *(u64 *)(mmio_base + REG_DATA);
+    return hp_addr;
 }
 
 /*
