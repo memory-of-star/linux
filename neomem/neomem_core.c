@@ -16,49 +16,51 @@ static struct list_head hp_entry;
 // static struct mutex kneomemd_lock;
 static struct task_struct * kneomemd;
 
-static unsigned long wait_time = 1000000; // 500ms
+static unsigned long wait_time = 100000; // 100ms
 static int FAST_NODE_ID = 0;
 // static u64 migration_cnt = 0;
 static u64 scan_cnt = 0;
 static u32 clear_interval = 10;
 static u32 hotness_threshold = 2;
 
+static bool neomem_promotion_enabled = true;
+
 static struct hotpage {
-	u64 paddr;
-	struct list_head list;
+    u64 paddr;
+    struct list_head list;
 }; 
 
 static u64 nr_hotpages;
 
 static void hotpage_add(u64 paddr)
 {
-	struct hotpage *hp = kmalloc(sizeof(*hp), GFP_KERNEL);
-	hp->paddr = paddr;
-	list_add(&hp->list, &hp_entry);
+    struct hotpage *hp = kmalloc(sizeof(*hp), GFP_KERNEL);
+    hp->paddr = paddr;
+    list_add(&hp->list, &hp_entry);
 }
 
 static int hotpage_clear(void)
 {
-	struct hotpage *hp, *tmp;
-	list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
-		list_del(&hp->list);
-		kfree(hp);
-	}
-	return 0;
+    struct hotpage *hp, *tmp;
+    list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
+        list_del(&hp->list);
+        kfree(hp);
+    }
+    return 0;
 }
 
 static void hotpage_dump(void)
 {
-	struct hotpage *hp;
-	list_for_each_entry(hp, &hp_entry, list) {
-		pr_info("hotpage: %llx\n", hp->paddr);
-	}
+    struct hotpage *hp;
+    list_for_each_entry(hp, &hp_entry, list) {
+        pr_info("hotpage: %llx\n", hp->paddr);
+    }
 }
 
 static void hotpage_init(void)
 {
-	INIT_LIST_HEAD(&hp_entry);
-	nr_hotpages = 0;
+    INIT_LIST_HEAD(&hp_entry);
+    nr_hotpages = 0;
 
     // init the hotness threshold
     set_hotness_threshold(hotness_threshold);
@@ -69,13 +71,16 @@ static void hotpage_init(void)
  */
 static int get_hotpages_from_neoprof(void)
 {
-	nr_hotpages = get_nr_hotpages();
-    printk("N Hotpages: %lu", nr_hotpages);
-	for(int i = 0; i < nr_hotpages; i++) {
-		// the get_hotpage operation is distructive?
-		u64 paddr = get_hotpage();
-		hotpage_add(paddr);
-	}
+    nr_hotpages = get_nr_hotpages();
+#ifdef DEBUG
+    if (nr_hotpages > 0)
+        printk("N Hotpages: %lu", nr_hotpages);
+#endif 
+    for(int i = 0; i < nr_hotpages; i++) {
+        // the get_hotpage operation is distructive?
+        u64 paddr = get_hotpage();
+        hotpage_add(paddr);
+    }
 // #ifdef DEBUG
 //     hotpage_dump();
 // #endif
@@ -85,7 +90,7 @@ static int get_hotpages_from_neoprof(void)
 
 static int neomem_migrate_pages(void)
 {
-	unsigned long pfn;
+    unsigned long pfn;
     struct hotpage *hp, *tmp;
     struct page *page;
     int nr_remaining;
@@ -94,68 +99,69 @@ static int neomem_migrate_pages(void)
 
     // folio_list is the list of pages to be migrated
     LIST_HEAD(folio_list);
-	list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
+    list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
         pfn = PHYS_PFN(hp->paddr);
 #ifdef DEBUG
-        printk("PFN to migrate: %lx",pfn);
+        if(pfn > 0)
+            printk("PFN to migrate: %lx",pfn);
 #endif
         if (!pfn_valid(pfn))
-		{
+        {
 #ifdef DEBUG
-			pr_err("pfn %lx is invalid\n", pfn);
+            pr_err("pfn %lx is invalid\n", pfn);
 #endif
-			continue;
-		}
+            continue;
+        }
         // page = pfn_to_page(pfn);
         // migrate_misplaced_page_no_vma(page, FAST_NODE_ID);
         struct folio *folio = damon_get_folio(pfn);
         if (!folio)
-		{
+        {
 #ifdef DEBUG
-			pr_err("folio is invalid, pfn: %lx\n", pfn);
+            pr_err("folio is invalid, pfn: %lx\n", pfn);
 #endif
-			continue;
-		}
+            continue;
+        }
         if (!folio_isolate_lru(folio)) {
-			folio_put(folio);
+            folio_put(folio);
 #ifdef DEBUG
-			pr_err("folio is not lru, pfn: %lx\n", pfn);
+            pr_err("folio is not lru, pfn: %lx\n", pfn);
 #endif
-			continue;
-		}
+            continue;
+        }
         if (folio_test_unevictable(folio)){
 #ifdef DEBUG
-			pr_err("folio is unevictable, pfn: %lx\n", pfn);
+            pr_err("folio is unevictable, pfn: %lx\n", pfn);
 #endif
-			folio_putback_lru(folio);
+            folio_putback_lru(folio);
         }
-		else{
-			list_add(&folio->lru, &folio_list);
+        else{
+            list_add(&folio->lru, &folio_list);
         }
-		folio_put(folio);
-	}
+        folio_put(folio);
+    }
 
     nr_remaining = migrate_pages(&folio_list, alloc_misplaced_dst_page,
-				     NULL, 0, MIGRATE_ASYNC,
-				     MR_NUMA_MISPLACED, &nr_succeeded);
+                     NULL, 0, MIGRATE_ASYNC,
+                     MR_NUMA_MISPLACED, &nr_succeeded);
 
-	if (nr_remaining) {
-		while (!list_empty(&folio_list)){
-			_folio = list_entry(folio_list.next, struct folio, lru);
-			list_del(&_folio->lru);
-			folio_putback_lru(_folio);
-		}
+    if (nr_remaining) {
+        while (!list_empty(&folio_list)){
+            _folio = list_entry(folio_list.next, struct folio, lru);
+            list_del(&_folio->lru);
+            folio_putback_lru(_folio);
+        }
 #ifdef DEBUG
-			pr_err("%d pages were remained!\n", nr_remaining);
+        pr_err("%d pages were remained!\n", nr_remaining);
 #endif
     }
 
     if (nr_succeeded) {
 #ifdef DEBUG
-			pr_err("%d pages were migrated!\n", nr_succeeded);
+        pr_err("%d pages were migrated!\n", nr_succeeded);
 #endif
-	}
-	BUG_ON(!list_empty(&folio_list));	
+    }
+    BUG_ON(!list_empty(&folio_list));	
 
     return 0;
 }
@@ -200,18 +206,18 @@ static void do_promotion(void)
  */
 static bool kneomemd_need_stop(void)
 {
-	if (kthread_should_stop())
-		return true;
-	return false;
+    if (kthread_should_stop())
+        return true;
+    return false;
 }
 
 static void kneomem_usleep(unsigned long usecs)
 {
-	/* See Documentation/timers/timers-howto.rst for the thresholds */
-	if (usecs > 20 * USEC_PER_MSEC)
-		schedule_timeout_idle(usecs_to_jiffies(usecs));
-	else
-		usleep_idle_range(usecs, usecs + 1);
+    /* See Documentation/timers/timers-howto.rst for the thresholds */
+    if (usecs > 20 * USEC_PER_MSEC)
+        schedule_timeout_idle(usecs_to_jiffies(usecs));
+    else
+        usleep_idle_range(usecs, usecs + 1);
 }
 
 /*
@@ -219,21 +225,25 @@ static void kneomem_usleep(unsigned long usecs)
  */
 static int kneomemd_fn(void * data)
 {
-	pr_info("kneomemd starts\n");
-	while (!kneomemd_need_stop()) {        
+    pr_info("kneomemd starts\n");
+    while (!kneomemd_need_stop()) {        
         // control the scan frequency
         kneomem_usleep(wait_time);
         // perform promotion
+
+        if(!neomem_promotion_enabled)
+            continue;
+
         do_promotion();
         scan_cnt++;
         if(scan_cnt % clear_interval == 0){
             // clear the states in neoprof
             reset_neoprof();
         }
-	}
-	pr_info("kneomem finishes\n");
-	kneomemd = NULL;
-	return 0;
+    }
+    pr_info("kneomem finishes\n");
+    kneomemd = NULL;
+    return 0;
 }
 
 /*
@@ -243,9 +253,9 @@ static int kneomemd_fn(void * data)
  */
 int neomem_start(void)
 {
-	hotpage_init();
-	
-	int err;
+    hotpage_init();
+    
+    int err;
     err = -EBUSY;
     void * ctx; // no use
     kneomemd = kthread_run(kneomemd_fn, ctx, "kdamond.%d", 1);
@@ -253,7 +263,7 @@ int neomem_start(void)
         err = PTR_ERR(kneomemd);
         kneomemd = NULL;
     }
-	return err;
+    return err;
 }
 
 static int __neomem_stop(void)
@@ -269,8 +279,162 @@ static int __neomem_stop(void)
 
 int neomem_stop(void)
 {
-	int err = 0;
-	err = __neomem_stop();
-	return err;
+    int err = 0;
+    err = __neomem_stop();
+    return err;
 }
 
+/*
+ * sysfs interface
+ */
+
+static ssize_t neomem_promotion_enabled_show(struct kobject *kobj,
+					  struct kobj_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%s\n",
+			  neomem_promotion_enabled ? "true" : "false");
+}
+
+static ssize_t neomem_promotion_enabled_store(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
+{
+	ssize_t ret;
+
+	ret = kstrtobool(buf, &neomem_promotion_enabled);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static struct kobj_attribute neomem_promotion_enabled_attr =
+	__ATTR(neomem_enabled, 0644, neomem_promotion_enabled_show,
+	       neomem_promotion_enabled_store);
+
+
+/* 
+ * hotness threshold
+ */
+
+static ssize_t neomem_threshold_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", hotness_threshold);
+}
+
+static ssize_t neomem_threshold_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 threshold;
+
+    ret = kstrtou32(buf, 0, &threshold);
+    if (ret)
+        return ret;
+
+    hotness_threshold = threshold;
+    set_hotness_threshold(hotness_threshold);
+
+    return count;
+}
+
+static struct kobj_attribute neomem_threshold_attr =
+    __ATTR(hot_threshold, 0644, neomem_threshold_show,
+           neomem_threshold_store);
+
+
+/* 
+ *  Migration interval (wait_time)
+ */
+
+static ssize_t neomem_migration_interval_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", wait_time);
+}
+
+static ssize_t neomem_migration_interval_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_wait_time;
+
+    ret = kstrtou32(buf, 0, &new_wait_time);
+    if (ret)
+        return ret;
+
+    wait_time = new_wait_time;
+    return count;
+}
+
+static struct kobj_attribute neomem_migration_interval_attr =
+	__ATTR(migration_interval, 0644, neomem_migration_interval_show,
+	       neomem_migration_interval_store);
+
+/* 
+ *  Clear interval
+ */
+
+static ssize_t neomem_clear_interval_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", clear_interval);
+}
+
+static ssize_t neomem_clear_interval_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_clear_interval;
+
+    ret = kstrtou32(buf, 0, &new_clear_interval);
+    if (ret)
+        return ret;
+
+    clear_interval = new_clear_interval;
+    return count;
+}
+
+static struct kobj_attribute neomem_clear_interval_attr =
+	__ATTR(clear_interval, 0644, neomem_clear_interval_show,
+	       neomem_clear_interval_store);
+
+
+static struct attribute *neomem_attrs[] = {
+	&neomem_promotion_enabled_attr.attr,
+    &neomem_threshold_attr.attr,
+    &neomem_migration_interval_attr.attr,
+    &neomem_clear_interval_attr.attr,
+	NULL,
+};
+
+static const struct attribute_group neomem_attr_group = {
+	.attrs = neomem_attrs,
+};
+
+static int __init neomem_init_sysfs(void)
+{
+	int err;
+	struct kobject *neomem_kobj;
+
+	neomem_kobj = kobject_create_and_add("neomem", mm_kobj);
+	if (!neomem_kobj) {
+		pr_err("failed to create neomem kobject\n");
+		return -ENOMEM;
+	}
+	err = sysfs_create_group(neomem_kobj, &neomem_attr_group);
+	if (err) {
+		pr_err("failed to register neomem group\n");
+		goto delete_obj;
+	}
+	return 0;
+
+delete_obj:
+	kobject_put(neomem_kobj);
+	return err;
+}
+subsys_initcall(neomem_init_sysfs);
