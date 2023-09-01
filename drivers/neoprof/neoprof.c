@@ -1,26 +1,42 @@
 #include "neoprof.h"
 
-// #define NEOPROFILER_MMIO_BASE 0x20feffa00000L
-#define NEOPROFILER_MMIO_BASE 0x2000L
-#define NEOPROFILER_REGION_SIZE 0x1000
+#define NEOPROFILER_MMIO_BASE 0x20beffa00000 // TODO: Avoid hardcoding
+#define NEOPROFILER_REGION_SIZE 0x10000
+#define DDR_OFFSET 0x80000 // page addr offset defined by CXL IP
 
-#define REG_STATUS          0x00
-#define REG_NR_HOTPAGES     0x01
-#define REG_THRESHOLD       0x02
-#define REG_DATA            0x03
+
+#define HOTPAGE_NUM_REG 0x200
+#define HOTPAGE_REG 0x300
+#define THRESHOLD_SET_REG 0x300
+#define NR_HOTPAGE_REG 0x200
+#define RD_TEST_REG 0x100
+#define WR_TEST_REG 0x100
+#define RESET_REG 0x200
+#define NR_PAGE_IN 0x400
 
 static void __iomem *mmio_base;
 
 // Reg read
-static inline unsigned int neoprof_read(unsigned long long reg_offset)
+static inline u32 neoprof_read(u32 reg_offset)
 {
     return readl(mmio_base + reg_offset);
 }
 
 // Reg write
-static inline void neoprof_write(unsigned int reg_offset, unsigned int value)
+static inline void neoprof_write(u32 reg_offset, u32 value)
 {
     writel(value, mmio_base + reg_offset);
+}
+
+// Test NeoProf RW by writing 0xabcd to WR_TEST_REG and reading it back
+static void test_rw(void){
+    neoprof_write(WR_TEST_REG, 0xabcd);
+    u32 data = neoprof_read(RD_TEST_REG);
+    if (data == 0xabcd){
+        pr_info("Test NeoProf RW: success\n");
+    } else {
+        pr_info("Test NeoProf RW: failed\n");
+    }
 }
 
 static int __init neoprof_init(void)
@@ -31,47 +47,46 @@ static int __init neoprof_init(void)
         printk("Failed to map NeoProf MMIO registers\n");
         return -ENOMEM;
     }
-    // Read example: read coprocessor status register
-    unsigned int status = neoprof_read(REG_STATUS);
-    pr_info("Neoprof counter: 0x%X\n", status);
+    test_rw();
     return 0;
 }
-
 
 static void __exit neoprof_exit(void)
 {
     if (mmio_base)
         iounmap(mmio_base);
 }
-
 /*
  * Read out the number of total hot pages
  */
-u64 get_nr_hotpages(void)
+u32 get_nr_hotpages(void)
 {
-    return neoprof_read(REG_NR_HOTPAGES);
+    return neoprof_read(HOTPAGE_NUM_REG);
 }
-
 /*
  * Read out the addresses of hot pages in CXL memory TODO: how to read out the addresses of hot pages in DRAM
  */
 u64 get_hotpage(void)
 {
-    volatile u64 hp_addr = *(u64 *)(mmio_base + REG_DATA);
+    volatile u64 hp_addr = neoprof_read(HOTPAGE_REG); // [63:12] is the address of hot page
+    if (hp_addr < DDR_OFFSET){
+        printk("Error: hot page address is not in DDR\n");
+        return 0;
+    }
+    hp_addr = (hp_addr - DDR_OFFSET) << 12; 
     return hp_addr;
 }
-
 /*
  * Set the hotness threshold
  */
-void set_hotness_threshold(u64 threshold)
+void set_hotness_threshold(u32 threshold)
 {
-    neoprof_write(REG_THRESHOLD, threshold);
+    neoprof_write(THRESHOLD_SET_REG, threshold);
 }
 
-u64 get_hotness_threshold(void)
+void reset_neoprof(void)
 {
-    return neoprof_read(REG_THRESHOLD);
+    neoprof_write(RESET_REG, 0x1);
 }
 
 

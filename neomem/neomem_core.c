@@ -11,8 +11,12 @@ static struct list_head hp_entry;
 static struct mutex kneomemd_lock;
 static struct task_struct * kneomemd;
 
-static unsigned long wait_time = 1000000;
+static unsigned long wait_time = 500000; // 500ms
 static int FAST_NODE_ID = 0;
+static u64 migration_cnt = 0;
+static u64 scan_cnt = 0;
+static u32 clear_interval = 10;
+static u32 hotness_threshold = 2;
 
 static struct hotpage {
 	u64 paddr;
@@ -50,6 +54,9 @@ static void hotpage_init(void)
 {
 	INIT_LIST_HEAD(&hp_entry);
 	nr_hotpages = 0;
+
+    // init the hotness threshold
+    set_hotness_threshold(hotness_threshold);
 }
 
 /*
@@ -58,6 +65,7 @@ static void hotpage_init(void)
 static int get_hotpages_from_neoprof(void)
 {
 	nr_hotpages = get_nr_hotpages();
+    printk("N Hotpages: %d", nr_hotpages);
 	for(int i = 0; i < nr_hotpages; i++) {
 		// the get_hotpage operation is distructive?
 		u64 paddr = get_hotpage();
@@ -78,6 +86,9 @@ static int neomem_migrate_pages(void)
     LIST_HEAD(source);
 	list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
         pfn = PHYS_PFN(hp->paddr);
+
+        printk("PFN to migrate: %d",pfn);
+
         if (!pfn_valid(pfn))
 		{
 #ifdef DEBUG
@@ -124,7 +135,6 @@ static void do_promotion(void)
     }
 }
 
-
 /*
  * Check whether current monitoring should be stopped
  *
@@ -146,23 +156,6 @@ static void kneomem_usleep(unsigned long usecs)
 		usleep_idle_range(usecs, usecs + 1);
 }
 
-// /* Returns negative error code if it's not activated but should return */
-// static int kneomemd_wait_activation()
-// {
-// 	unsigned long wait_time;
-// 	unsigned long min_wait_time = 0;
-// 	bool init_wait_time = false;
-
-// 	while (!kneomemd_need_stop()) {
-// 		kneomem_usleep(min_wait_time);
-
-// 		if (ctx->callback.after_wmarks_check &&
-// 				ctx->callback.after_wmarks_check(ctx))
-// 			break;
-// 	}
-// 	return -EBUSY;
-// }
-
 /*
  * The monitoring daemon that runs as a kernel thread
  */
@@ -174,6 +167,11 @@ static int kneomemd_fn(void * data)
         kneomem_usleep(wait_time);
         // perform promotion
         do_promotion();
+        scan_cnt++;
+        if(scan_cnt % clear_interval == 0){
+            // clear the states in neoprof
+            reset_neoprof();
+        }
 	}
 	pr_info("kneomem finishes\n");
 	kneomemd = NULL;

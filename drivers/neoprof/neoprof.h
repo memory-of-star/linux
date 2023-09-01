@@ -9,12 +9,12 @@
 /*
     * The following functions are used to access the neoprof device
 */
-u64 get_nr_hotpages(void);
+u32 get_nr_hotpages(void);
 
 u64 get_hotpage(void);
 
-u64 get_hotness_threshold(void);
+void set_hotness_threshold(unsigned int  threshold);
 
-void set_hotness_threshold(u64 threshold);
+void reset_neoprof(void);
 
 #endif 
