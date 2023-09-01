@@ -71,7 +71,7 @@ u64 get_hotpage(void)
 {
     volatile u64 hp_addr = neoprof_read(HOTPAGE_REG); // [63:12] is the address of hot page
     if (hp_addr < DDR_OFFSET){
-        printk("Error: hot page address is not in DDR\n");
+        printk("Error: hot page address 0x%lx is not in CXL Mem\n", hp_addr);
         return 0;
     }
     hp_addr = ((hp_addr - DDR_OFFSET) << 12) + CXL_MEM_BASE; 
