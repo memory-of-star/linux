@@ -1,6 +1,9 @@
 #include <linux/list.h>
 #include <linux/types.h>
 #include "../drivers/neoprof/neoprof.h"
+#include "../mm/damon/ops-common.h"
+#include <linux/mm.h>
+#include "../mm/internal.h"
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/migrate.h>
@@ -82,13 +85,15 @@ static int get_hotpages_from_neoprof(void)
 
 static int neomem_migrate_pages(void)
 {
-
 	unsigned long pfn;
     struct hotpage *hp, *tmp;
     struct page *page;
+    int nr_remaining;
+    int nr_succeeded;
+    struct folio *_folio;
 
-    // source is the list of pages to be migrated
-    LIST_HEAD(source);
+    // folio_list is the list of pages to be migrated
+    LIST_HEAD(folio_list);
 	list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
         pfn = PHYS_PFN(hp->paddr);
 #ifdef DEBUG
@@ -101,9 +106,57 @@ static int neomem_migrate_pages(void)
 #endif
 			continue;
 		}
-        page = pfn_to_page(pfn);
-        migrate_misplaced_page_no_vma(page, FAST_NODE_ID);
+        // page = pfn_to_page(pfn);
+        // migrate_misplaced_page_no_vma(page, FAST_NODE_ID);
+        struct folio *folio = damon_get_folio(pfn);
+        if (!folio)
+		{
+#ifdef DEBUG
+			pr_err("folio is invalid, pfn: %lx\n", pfn);
+#endif
+			continue;
+		}
+        if (!folio_isolate_lru(folio)) {
+			folio_put(folio);
+#ifdef DEBUG
+			pr_err("folio is not lru, pfn: %lx\n", pfn);
+#endif
+			continue;
+		}
+        if (folio_test_unevictable(folio)){
+#ifdef DEBUG
+			pr_err("folio is unevictable, pfn: %lx\n", pfn);
+#endif
+			folio_putback_lru(folio);
+        }
+		else{
+			list_add(&folio->lru, &folio_list);
+        }
+		folio_put(folio);
 	}
+
+    nr_remaining = migrate_pages(&folio_list, alloc_misplaced_dst_page,
+				     NULL, 0, MIGRATE_ASYNC,
+				     MR_NUMA_MISPLACED, &nr_succeeded);
+
+	if (nr_remaining) {
+		while (!list_empty(&folio_list)){
+			_folio = list_entry(folio_list.next, struct folio, lru);
+			list_del(&_folio->lru);
+			folio_putback_lru(_folio);
+		}
+#ifdef DEBUG
+			pr_err("%d pages were remained!\n", nr_remaining);
+#endif
+    }
+
+    if (nr_succeeded) {
+#ifdef DEBUG
+			pr_err("%d pages were migrated!\n", nr_succeeded);
+#endif
+	}
+	BUG_ON(!list_empty(&folio_list));	
+
     return 0;
 }
 
