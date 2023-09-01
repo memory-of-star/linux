@@ -7,13 +7,15 @@
 #include <linux/mm_inline.h>
 #include <linux/delay.h>
 
+#define DEBUG 1
+
 static struct list_head hp_entry;
-static struct mutex kneomemd_lock;
+// static struct mutex kneomemd_lock;
 static struct task_struct * kneomemd;
 
-static unsigned long wait_time = 500000; // 500ms
+static unsigned long wait_time = 1000000; // 500ms
 static int FAST_NODE_ID = 0;
-static u64 migration_cnt = 0;
+// static u64 migration_cnt = 0;
 static u64 scan_cnt = 0;
 static u32 clear_interval = 10;
 static u32 hotness_threshold = 2;
@@ -65,12 +67,15 @@ static void hotpage_init(void)
 static int get_hotpages_from_neoprof(void)
 {
 	nr_hotpages = get_nr_hotpages();
-    printk("N Hotpages: %d", nr_hotpages);
+    printk("N Hotpages: %lu", nr_hotpages);
 	for(int i = 0; i < nr_hotpages; i++) {
 		// the get_hotpage operation is distructive?
 		u64 paddr = get_hotpage();
 		hotpage_add(paddr);
 	}
+// #ifdef DEBUG
+//     hotpage_dump();
+// #endif
     return 0;   
 }
 
@@ -80,15 +85,15 @@ static int neomem_migrate_pages(void)
 
 	unsigned long pfn;
     struct hotpage *hp, *tmp;
-    struct page *page, *head;
+    struct page *page;
 
     // source is the list of pages to be migrated
     LIST_HEAD(source);
 	list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
         pfn = PHYS_PFN(hp->paddr);
-
-        printk("PFN to migrate: %d",pfn);
-
+#ifdef DEBUG
+        printk("PFN to migrate: %lx",pfn);
+#endif
         if (!pfn_valid(pfn))
 		{
 #ifdef DEBUG
@@ -187,7 +192,8 @@ int neomem_start(void)
 {
 	hotpage_init();
 	
-	int err = -EBUSY;
+	int err;
+    err = -EBUSY;
     void * ctx; // no use
     kneomemd = kthread_run(kneomemd_fn, ctx, "kdamond.%d", 1);
     if (IS_ERR(kneomemd)) {
@@ -208,9 +214,9 @@ static int __neomem_stop(void)
     return -EPERM;
 }
 
-int damon_stop(void)
+int neomem_stop(void)
 {
-	int i, err = 0;
+	int err = 0;
 	err = __neomem_stop();
 	return err;
 }

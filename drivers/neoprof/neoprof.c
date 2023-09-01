@@ -3,7 +3,7 @@
 #define NEOPROFILER_MMIO_BASE 0x20beffa00000 // TODO: Avoid hardcoding
 #define NEOPROFILER_REGION_SIZE 0x10000
 #define DDR_OFFSET 0x80000 // page addr offset defined by CXL IP
-
+#define CXL_MEM_BASE 0x2080000000 // CXL memory base addr
 
 #define HOTPAGE_NUM_REG 0x200
 #define HOTPAGE_REG 0x300
@@ -31,7 +31,8 @@ static inline void neoprof_write(u32 reg_offset, u32 value)
 // Test NeoProf RW by writing 0xabcd to WR_TEST_REG and reading it back
 static void test_rw(void){
     neoprof_write(WR_TEST_REG, 0xabcd);
-    u32 data = neoprof_read(RD_TEST_REG);
+    u32 data;
+    data = neoprof_read(RD_TEST_REG);
     if (data == 0xabcd){
         pr_info("Test NeoProf RW: success\n");
     } else {
@@ -73,7 +74,7 @@ u64 get_hotpage(void)
         printk("Error: hot page address is not in DDR\n");
         return 0;
     }
-    hp_addr = (hp_addr - DDR_OFFSET) << 12; 
+    hp_addr = ((hp_addr - DDR_OFFSET) << 12) + CXL_MEM_BASE; 
     return hp_addr;
 }
 /*
