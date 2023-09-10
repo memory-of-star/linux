@@ -23,6 +23,19 @@ static u64 scan_cnt = 0;
 static u32 clear_interval = 10;
 static u32 hotness_threshold = 2;
 
+// for state monitor
+static u32 state_sample_interval = 100;
+static u32 total_state_sample_cnt = 0;
+static u32 wr_state_sample_cnt = 0;
+static u32 rd_state_sample_cnt = 0;
+
+static void get_states(void){
+    total_state_sample_cnt = get_total_state_sample_cnt();
+    wr_state_sample_cnt = get_wr_state_sample_cnt();
+    rd_state_sample_cnt = get_rd_state_sample_cnt();
+}
+
+// for neoprof-base promotion
 static bool neomem_promotion_enabled = true;
 
 static struct hotpage {
@@ -229,8 +242,10 @@ static int kneomemd_fn(void * data)
     while (!kneomemd_need_stop()) {        
         // control the scan frequency
         kneomem_usleep(wait_time);
-        // perform promotion
+        // get the states
+        get_states();
 
+        // perform promotion
         if(!neomem_promotion_enabled)
             continue;
 
@@ -404,11 +419,57 @@ static struct kobj_attribute neomem_clear_interval_attr =
 	       neomem_clear_interval_store);
 
 
+/* 
+ *  State sampling interval
+ */
+static ssize_t neomem_state_sample_interval_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", state_sample_interval);
+}
+
+static ssize_t neomem_state_sample_interval_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_state_sample_interval;
+
+    ret = kstrtou32(buf, 0, &new_state_sample_interval);
+    if (ret)
+        return ret;
+
+    state_sample_interval = new_state_sample_interval;
+    set_state_sample_interval(state_sample_interval);
+    return count;
+}
+
+static struct kobj_attribute neomem_state_sample_interval_attr =
+	__ATTR(state_sample_interval, 0644, neomem_state_sample_interval_show,
+	       neomem_state_sample_interval_store);
+
+
+/*
+ * Show states
+ */
+static ssize_t neomem_states_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u %u %u\n", total_state_sample_cnt, rd_state_sample_cnt, wr_state_sample_cnt);
+}
+
+static struct kobj_attribute neomem_states_attr =
+	__ATTR(states_show, 0644, neomem_states_show,
+	       NULL);
+
+
 static struct attribute *neomem_attrs[] = {
 	&neomem_promotion_enabled_attr.attr,
     &neomem_threshold_attr.attr,
     &neomem_migration_interval_attr.attr,
     &neomem_clear_interval_attr.attr,
+    &neomem_state_sample_interval_attr.attr,
+    &neomem_states_attr.attr, 
 	NULL,
 };
 

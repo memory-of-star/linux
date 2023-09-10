@@ -14,6 +14,12 @@
 #define RESET_REG 0x200
 #define NR_PAGE_IN 0x400
 
+// for state monitor
+#define STATE_SAMPLE_INTERVAL 0x400
+#define TOTAL_STATE_SAMPLE_CNT 0x500
+#define RD_STATE_SAMPLE_CNT 0x600
+#define WR_STATE_SAMPLE_CNT 0x700
+
 static void __iomem *mmio_base;
 
 // Reg read
@@ -90,6 +96,32 @@ void reset_neoprof(void)
     neoprof_write(RESET_REG, 0x1);
 }
 
+/* 
+ * State Monitor
+ */
+
+void set_state_sample_interval(u32 interval)
+{
+    neoprof_write(STATE_SAMPLE_INTERVAL, interval);
+}
+
+// Read out the number of total sampled CXL read or write
+u32 get_total_state_sample_cnt(void)
+{
+    return neoprof_read(TOTAL_STATE_SAMPLE_CNT);
+}
+
+// Read out the number of sampled CXL write
+u32 get_wr_state_sample_cnt(void)
+{
+    return neoprof_read(WR_STATE_SAMPLE_CNT);
+}
+
+// Read out the number of sampled CXL read
+u32 get_rd_state_sample_cnt(void)
+{
+    return neoprof_read(RD_STATE_SAMPLE_CNT);
+}
 
 module_init(neoprof_init);
 module_exit(neoprof_exit);
