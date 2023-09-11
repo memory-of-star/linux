@@ -10,7 +10,7 @@
 #include <linux/mm_inline.h>
 #include <linux/delay.h>
 
-#define DEBUG 1
+// #define DEBUG 1
 
 static struct list_head hp_entry;
 // static struct mutex kneomemd_lock;
