@@ -9,12 +9,17 @@
 #include <linux/migrate.h>
 #include <linux/mm_inline.h>
 #include <linux/delay.h>
+#include <linux/wait.h>
 
 // #define DEBUG 1
 
 static struct list_head hp_entry;
 // static struct mutex kneomemd_lock;
 static struct task_struct * kneomemd;
+
+static unsigned long migrated_pages = 0;
+static int iter = 0;
+static DECLARE_WAIT_QUEUE_HEAD(kneomemd_wait);
 
 static unsigned long wait_time = 100000; // 100ms
 static int FAST_NODE_ID = 0;
@@ -170,6 +175,13 @@ static int neomem_migrate_pages(void)
     }
 
     if (nr_succeeded) {
+        iter += 1;
+        migrated_pages += nr_succeeded;
+        if (iter % 10 == 0){
+            pr_err("%ld pages were migrated in the last 10 iterations\n", migrated_pages);
+            migrated_pages = 0;
+        }
+
 #ifdef DEBUG
         pr_err("%d pages were migrated!\n", nr_succeeded);
 #endif
@@ -246,8 +258,9 @@ static int kneomemd_fn(void * data)
         get_states();
 
         // perform promotion
-        if(!neomem_promotion_enabled)
-            continue;
+        if(!neomem_promotion_enabled){
+            wait_event_interruptible(kneomemd_wait, (wait_time > 0));
+        }
 
         do_promotion();
         scan_cnt++;
@@ -317,6 +330,8 @@ static ssize_t neomem_promotion_enabled_store(struct kobject *kobj,
 	ssize_t ret;
 
 	ret = kstrtobool(buf, &neomem_promotion_enabled);
+    if (neomem_promotion_enabled)
+        wake_up_interruptible(&kneomemd_wait);;
 	if (ret)
 		return ret;
 
