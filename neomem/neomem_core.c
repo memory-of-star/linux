@@ -331,7 +331,7 @@ static ssize_t neomem_promotion_enabled_store(struct kobject *kobj,
 
 	ret = kstrtobool(buf, &neomem_promotion_enabled);
     if (neomem_promotion_enabled)
-        wake_up_interruptible(&kneomemd_wait);;
+        wake_up_interruptible(&kneomemd_wait);
 	if (ret)
 		return ret;
 
