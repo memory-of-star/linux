@@ -43,6 +43,8 @@ static void get_states(void){
 // for neoprof-base promotion
 static bool neomem_promotion_enabled = true;
 
+bool neomem_debug_enabled = false;
+
 static struct hotpage {
     u64 paddr;
     struct list_head list;
@@ -259,7 +261,7 @@ static int kneomemd_fn(void * data)
 
         // perform promotion
         if(!neomem_promotion_enabled){
-            wait_event_interruptible(kneomemd_wait, (wait_time > 0));
+            wait_event_interruptible(kneomemd_wait, neomem_promotion_enabled);
         }
 
         do_promotion();
@@ -478,6 +480,31 @@ static struct kobj_attribute neomem_states_attr =
 	       NULL);
 
 
+static ssize_t neomem_debug_show(struct kobject *kobj,
+					  struct kobj_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%s\n",
+			  neomem_debug_enabled ? "true" : "false");
+}
+
+static ssize_t neomem_debug_store(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
+{
+	ssize_t ret;
+
+	ret = kstrtobool(buf, &neomem_debug_enabled);
+
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static struct kobj_attribute neomem_debug_attr =
+	__ATTR(debug, 0644, neomem_debug_show,
+	       neomem_debug_store);
+
 static struct attribute *neomem_attrs[] = {
 	&neomem_promotion_enabled_attr.attr,
     &neomem_threshold_attr.attr,
@@ -485,6 +512,7 @@ static struct attribute *neomem_attrs[] = {
     &neomem_clear_interval_attr.attr,
     &neomem_state_sample_interval_attr.attr,
     &neomem_states_attr.attr, 
+    &neomem_debug_attr.attr,
 	NULL,
 };
 
