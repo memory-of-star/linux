@@ -12,9 +12,14 @@
 #include <linux/pagemap.h>
 #include <linux/rmap.h>
 #include <linux/swap.h>
+#include <linux/migrate.h>
+#include <linux/damon.h>
+#include <linux/mm_inline.h>
 
 #include "../internal.h"
 #include "ops-common.h"
+
+unsigned long long migrated_pages_cnt = 0;
 
 static bool __damon_pa_mkold(struct folio *folio, struct vm_area_struct *vma,
 		unsigned long addr, void *arg)
@@ -157,12 +162,12 @@ static void __damon_pa_check_access(struct damon_region *r)
 	static bool last_accessed;
 
 	/* If the region is in the last checked page, reuse the result */
-	if (ALIGN_DOWN(last_addr, last_folio_sz) ==
-				ALIGN_DOWN(r->sampling_addr, last_folio_sz)) {
-		if (last_accessed)
-			r->nr_accesses++;
-		return;
-	}
+	// if (ALIGN_DOWN(last_addr, last_folio_sz) ==
+	// 			ALIGN_DOWN(r->sampling_addr, last_folio_sz)) {
+	// 	if (last_accessed)
+	// 		r->nr_accesses++;
+	// 	return;
+	// }
 
 	last_accessed = damon_pa_young(r->sampling_addr, &last_folio_sz);
 	if (last_accessed)
@@ -298,6 +303,79 @@ static unsigned long damon_pa_deactivate_pages(struct damon_region *r,
 	return damon_pa_mark_accessed_or_deactivate(r, s, false);
 }
 
+static unsigned long damon_pa_migrate(struct damon_region *r,
+	struct damos *s)
+{
+	unsigned long addr;
+	struct folio *_folio;
+	LIST_HEAD(folio_list);
+	int nr_remaining;
+	unsigned int nr_succeeded = 0;
+#ifdef DETAIL_INFO
+	size_t len = 0;
+#endif
+
+	for (addr = r->ar.start; addr < r->ar.end; addr += PAGE_SIZE) {
+		struct folio *folio = damon_get_folio(PHYS_PFN(addr));
+
+		if (!folio)
+			continue;
+
+		if (damos_pa_filter_out(s, folio)) {
+			folio_put(folio);
+			continue;
+		}
+
+
+		folio_clear_referenced(folio);
+		folio_test_clear_young(folio);
+		if (!folio_isolate_lru(folio)) {
+			folio_put(folio);
+			continue;
+		}
+		if (folio_test_unevictable(folio))
+			folio_putback_lru(folio);
+		else
+			list_add(&folio->lru, &folio_list);
+		folio_put(folio);
+	}
+
+#ifdef DETAIL_INFO
+	len = list_count_nodes(&folio_list);
+	printk("single migration folio list length: %ld\n", len);
+	_folio = list_entry(folio_list.next, struct folio, lru);
+	len = (size_t)folio_nr_pages(_folio);
+	printk("single migration folio nr_pages: %ld\n", len);
+#endif
+
+	nr_remaining = migrate_pages(&folio_list, alloc_misplaced_dst_page,
+				     NULL, 0, MIGRATE_SYNC,
+				     MR_NUMA_MISPLACED, &nr_succeeded);
+
+	if (nr_remaining) {
+		while (!list_empty(&folio_list)){
+			_folio = list_entry(folio_list.next, struct folio, lru);
+			list_del(&_folio->lru);
+			folio_putback_lru(_folio);
+		}
+// #ifdef PRINT_DEBUG_INFO
+// 		printk("%d pages were remained!\n", nr_remaining);
+// #endif
+	}
+	if (nr_succeeded) {
+#ifdef PRINT_DEBUG_INFO
+		migrated_pages_cnt += (unsigned long long)nr_succeeded;
+#endif
+
+#ifdef DETAIL_INFO
+		printk("single migration: %d pages were migrated, migrated_pages_cnt is %lld\n", nr_succeeded, migrated_pages_cnt);
+#endif
+	}
+	BUG_ON(!list_empty(&folio_list));	
+
+	return (unsigned long)(nr_succeeded) * PAGE_SIZE;
+}
+
 static unsigned long damon_pa_apply_scheme(struct damon_ctx *ctx,
 		struct damon_target *t, struct damon_region *r,
 		struct damos *scheme)
@@ -311,6 +389,8 @@ static unsigned long damon_pa_apply_scheme(struct damon_ctx *ctx,
 		return damon_pa_deactivate_pages(r, scheme);
 	case DAMOS_STAT:
 		break;
+	case DAMOS_MIGRATE:
+		return damon_pa_migrate(r, scheme);
 	default:
 		/* DAMOS actions that not yet supported by 'paddr'. */
 		break;
@@ -329,6 +409,8 @@ static int damon_pa_scheme_score(struct damon_ctx *context,
 		return damon_hot_score(context, r, scheme);
 	case DAMOS_LRU_DEPRIO:
 		return damon_cold_score(context, r, scheme);
+	case DAMOS_MIGRATE:
+		return damon_hot_score(context, r, scheme);
 	default:
 		break;
 	}

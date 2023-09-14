@@ -31,6 +31,7 @@ static struct damon_operations damon_registered_ops[NR_DAMON_OPS];
 
 static struct kmem_cache *damon_region_cache __ro_after_init;
 
+
 /* Should be called under damon_ops_lock with id smaller than NR_DAMON_OPS */
 static bool __damon_is_registered_ops(enum damon_ops_id id)
 {
@@ -883,6 +884,9 @@ static void damos_apply_scheme(struct damon_ctx *c, struct damon_target *t,
 	struct timespec64 begin, end;
 	unsigned long sz_applied = 0;
 	int err = 0;
+#ifdef DETAIL_INFO
+	unsigned long _start, _time;
+#endif
 
 	if (c->ops.apply_scheme) {
 		if (quota->esz && quota->charged_sz + sz > quota->esz) {
@@ -893,14 +897,26 @@ static void damos_apply_scheme(struct damon_ctx *c, struct damon_target *t,
 			damon_split_region_at(t, r, sz);
 		}
 		ktime_get_coarse_ts64(&begin);
+
+#ifdef DETAIL_INFO
+		_start = jiffies;	
+#endif
+
 		if (c->callback.before_damos_apply)
 			err = c->callback.before_damos_apply(c, t, r, s);
+
 		if (!err)
 			sz_applied = c->ops.apply_scheme(c, t, r, s);
 		ktime_get_coarse_ts64(&end);
 		quota->total_charged_ns += timespec64_to_ns(&end) -
 			timespec64_to_ns(&begin);
 		quota->charged_sz += sz;
+
+#ifdef DETAIL_INFO
+		_time = jiffies - _start;
+		printk("single migrate. quota->charged_sz: %ld, current size: %ld, time: %ld\n", quota->charged_sz, sz, _time);
+#endif
+
 		if (quota->esz && quota->charged_sz >= quota->esz) {
 			quota->charge_target_from = t;
 			quota->charge_addr_from = r->ar.end + 1;
@@ -1007,6 +1023,11 @@ static void damos_adjust_quota(struct damon_ctx *c, struct damos *s)
 			break;
 	}
 	quota->min_score = score;
+
+#ifdef PRINT_DEBUG_INFO
+	printk("quota adjusted. quota->min_score: %d, quota->esz: %ld\n", quota->min_score, quota->esz);
+	printk("quota->total_charged_sz: %ld, quota->total_charged_ns: %ld\n", quota->total_charged_sz, quota->total_charged_ns);
+#endif
 }
 
 static void kdamond_apply_schemes(struct damon_ctx *c)
@@ -1451,6 +1472,59 @@ int damon_set_region_biggest_system_ram_default(struct damon_target *t,
 	addr_range.end = *end;
 	return damon_set_regions(t, &addr_range, 1);
 }
+
+
+int damon_set_region_numa_node1(struct damon_target *t,
+			unsigned long *start, unsigned long *end)
+{
+	unsigned long _start, _end;
+	struct damon_region *newr;
+	struct damon_region *r, *next;
+
+#ifdef PRINT_DEBUG_INFO
+	int n;
+#endif
+
+	damon_for_each_region_safe(r, next, t) {
+		damon_destroy_region(r, t);
+	}
+
+
+	r = damon_first_region(t);
+
+	if (*start > *end)
+		return -EINVAL;
+
+	*start = PFN_PHYS(NODE_DATA(1)->node_start_pfn);
+	*end = PFN_PHYS(NODE_DATA(1)->node_start_pfn + NODE_DATA(1)->node_spanned_pages);
+
+	_start = ALIGN_DOWN(*start, PAGE_SIZE);
+	_end = ALIGN(*end, PAGE_SIZE);
+
+	for (; _start < _end; _start += PAGE_SIZE){
+		newr = damon_new_region(_start, _start + PAGE_SIZE);
+		if (!newr)
+			return -ENOMEM;
+		damon_insert_region(newr, r, damon_next_region(r), t);
+		r = damon_next_region(r);
+	}
+
+#ifdef PRINT_DEBUG_INFO
+	r = damon_first_region(t);
+	printk("target has %d regions!\n", t->nr_regions);
+	for (n = 0; n < t->nr_regions; n++){
+		if (n >= t->nr_regions - 10 || n <= 10){
+			printk("region %d status:\n", n);
+			printk("start: %ld, end: %ld, size: %ld\n", r->ar.start, r->ar.end, r->ar.end - r->ar.start);
+		}
+		r = damon_next_region(r);
+	}
+	printk("is circle: %d\n", (int)((r->list.next == t->regions_list.next) && (r->list.prev == t->regions_list.prev)));
+#endif
+
+	return 0;
+}
+
 
 static int __init damon_init(void)
 {
