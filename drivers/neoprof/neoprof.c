@@ -21,6 +21,9 @@
 #define WR_STATE_SAMPLE_CNT 0x700
 
 static void __iomem *mmio_base;
+static unsigned long long num_error_cxl_pages = 0;
+
+extern bool neomem_debug_enabled;
 
 // Reg read
 static inline u32 neoprof_read(u32 reg_offset)
@@ -77,9 +80,21 @@ u64 get_hotpage(void)
 {
     volatile u64 hp_addr = neoprof_read(HOTPAGE_REG); // [63:12] is the address of hot page
     if (hp_addr < DDR_OFFSET){
-        printk("Error: hot page address 0x%lx is not in CXL Mem\n", hp_addr);
-        return 0;
+            // printk("Error: hot page address 0x%lx is not in CXL Mem\n", hp_addr);
+            
+            if (neomem_debug_enabled)
+            {
+                num_error_cxl_pages += 1;
+                if (num_error_cxl_pages % 100000 == 0)
+                    printk("Error: %lld hot page addresses not in CXL Mem\n", num_error_cxl_pages);
+            }
+            // return 0;
+            hp_addr = 0x400000 + hp_addr;
     }
+    // if (neomem_debug_enabled)
+    // {
+    //     printk("ADDRESS: hot page address 0x%lx is detected\n", hp_addr);
+    // }
     hp_addr = ((hp_addr - DDR_OFFSET) << 12) + CXL_MEM_BASE; 
     return hp_addr;
 }
