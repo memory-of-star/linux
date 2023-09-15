@@ -56,11 +56,6 @@
 #include "stats.h"
 #include "autogroup.h"
 
-unsigned long long task_tick_fair_cnt = 0;
-unsigned long long task_tick_numa_cnt = 0;
-unsigned long long task_tick_numa_cnt_1 = 0;
-unsigned long long task_numa_work_cnt = 0;
-
 #define DEBUG_COUNTER(name, times) \
 	name += 1; \
 	if (name % times == 0){ \
@@ -2955,8 +2950,6 @@ static void task_numa_work(struct callback_head *work)
 	long pages, virtpages;
 	struct vma_iterator vmi;
 
-	DEBUG_COUNTER(task_numa_work_cnt, 10000)
-
 	SCHED_WARN_ON(p != container_of(work, struct task_struct, numa_work));
 
 	work->next = work;
@@ -3146,15 +3139,11 @@ static void task_tick_numa(struct rq *rq, struct task_struct *curr)
 	struct callback_head *work = &curr->numa_work;
 	u64 period, now;
 
-	DEBUG_COUNTER(task_tick_numa_cnt, 10000)
-
 	/*
 	 * We don't care about NUMA placement if we don't have memory.
 	 */
 	if (!curr->mm || (curr->flags & (PF_EXITING | PF_KTHREAD)) || work->next != work)
 		return;
-
-	DEBUG_COUNTER(task_tick_numa_cnt_1, 10000)
 
 	/*
 	 * Using runtime rather than walltime has the dual advantage that
@@ -12009,8 +11998,6 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
-
-	DEBUG_COUNTER(task_tick_fair_cnt, 10000)
 
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);

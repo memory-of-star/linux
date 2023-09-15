@@ -4682,7 +4682,6 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 	pte_t pte, old_pte;
 	int flags = 0;
 
-	DEBUG_COUNTER(do_numa_page_cnt, 10000);
 	/*
 	 * The "pte" at this point cannot be used safely without
 	 * validation through pte_unmap_same(). It's of NUMA type but
@@ -4747,9 +4746,6 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 	target_nid = numa_migrate_prep(page, vma, vmf->address, page_nid,
 			&flags);
 	if (target_nid == NUMA_NO_NODE) {
-
-		DEBUG_COUNTER(do_numa_page_numa_no_node_cnt, 10000);
-
 		put_page(page);
 		goto out_map;
 	}
@@ -4758,11 +4754,9 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 
 	/* Migrate to the requested node */
 	if (migrate_misplaced_page(page, vma, target_nid)) {
-		DEBUG_COUNTER(do_numa_page_numa_migrated_cnt, 10000);
 		page_nid = target_nid;
 		flags |= TNF_MIGRATED;
 	} else {
-		DEBUG_COUNTER(do_numa_page_numa_migrate_failed_cnt, 10000);
 		flags |= TNF_MIGRATE_FAIL;
 		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
 		spin_lock(vmf->ptl);
