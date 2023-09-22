@@ -12,6 +12,16 @@
 
 #include "ops-common.h"
 
+static unsigned long long not_page_or_pagetail_cnt = 0;
+static unsigned long long folio_not_lru_cnt = 0;
+static unsigned long long folio_get_failed_cnt = 0;
+static unsigned long long damon_get_folio_final_failed_cnt = 0;
+
+#define DEBUG_COUNTER(name, times) \
+	name += 1; \
+	if (name % times == 0){ \
+		printk(#name ": %lld\n", name); \
+	}
 /*
  * Get an online page for a pfn if it's in the LRU list.  Otherwise, returns
  * NULL.
@@ -24,13 +34,23 @@ struct folio *damon_get_folio(unsigned long pfn)
 	struct page *page = pfn_to_online_page(pfn);
 	struct folio *folio;
 
-	if (!page || PageTail(page))
+	if (!page || PageTail(page)){
+		DEBUG_COUNTER(not_page_or_pagetail_cnt, 100000)
 		return NULL;
+	}
 
 	folio = page_folio(page);
-	if (!folio_test_lru(folio) || !folio_try_get(folio))
+	if (!folio_test_lru(folio) || !folio_try_get(folio)){
+		if (!folio_test_lru(folio)){
+			DEBUG_COUNTER(folio_not_lru_cnt, 100000)
+		}
+		else{
+			DEBUG_COUNTER(folio_get_failed_cnt, 10000)
+		}
 		return NULL;
+	}
 	if (unlikely(page_folio(page) != folio || !folio_test_lru(folio))) {
+		DEBUG_COUNTER(damon_get_folio_final_failed_cnt, 10000)
 		folio_put(folio);
 		folio = NULL;
 	}

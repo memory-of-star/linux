@@ -10,6 +10,7 @@
 #include <linux/mm_inline.h>
 #include <linux/delay.h>
 #include <linux/wait.h>
+#include <linux/page-flags.h>
 
 // #define DEBUG 1
 
@@ -33,6 +34,19 @@ static u32 state_sample_interval = 100;
 static u32 total_state_sample_cnt = 0;
 static u32 wr_state_sample_cnt = 0;
 static u32 rd_state_sample_cnt = 0;
+
+static unsigned long long pfn_invalid_cnt = 0;
+static unsigned long long folio_invalid_cnt = 0;
+static unsigned long long folio_not_lru_cnt_after_get = 0;
+static unsigned long long folio_unevictable_cnt = 0;
+static unsigned long long folio_remained_cnt = 0;
+static unsigned long long page_not_existed_cnt = 0;
+
+#define DEBUG_COUNTER(name, times) \
+	name += 1; \
+	if (name % times == 0){ \
+		printk(#name ": %lld\n", name); \
+	}
 
 static void get_states(void){
     total_state_sample_cnt = get_total_state_sample_cnt();
@@ -130,9 +144,16 @@ static int neomem_migrate_pages(void)
 #ifdef DEBUG
             pr_err("pfn %lx is invalid\n", pfn);
 #endif
+            DEBUG_COUNTER(pfn_invalid_cnt, 100000)
             continue;
         }
-        // page = pfn_to_page(pfn);
+        page = pfn_to_page(pfn);
+        if (!page){
+            DEBUG_COUNTER(page_not_existed_cnt, 10000)
+            continue;
+        }
+        page = compound_head(page);
+        pfn = page_to_pfn(page);
         // migrate_misplaced_page_no_vma(page, FAST_NODE_ID);
         struct folio *folio = damon_get_folio(pfn);
         if (!folio)
@@ -140,6 +161,7 @@ static int neomem_migrate_pages(void)
 #ifdef DEBUG
             pr_err("folio is invalid, pfn: %lx\n", pfn);
 #endif
+            DEBUG_COUNTER(folio_invalid_cnt, 100000)
             continue;
         }
         if (!folio_isolate_lru(folio)) {
@@ -147,12 +169,14 @@ static int neomem_migrate_pages(void)
 #ifdef DEBUG
             pr_err("folio is not lru, pfn: %lx\n", pfn);
 #endif
+            DEBUG_COUNTER(folio_not_lru_cnt_after_get, 100000)
             continue;
         }
         if (folio_test_unevictable(folio)){
 #ifdef DEBUG
             pr_err("folio is unevictable, pfn: %lx\n", pfn);
 #endif
+            DEBUG_COUNTER(folio_unevictable_cnt, 100000)
             folio_putback_lru(folio);
         }
         else{
@@ -170,6 +194,7 @@ static int neomem_migrate_pages(void)
             _folio = list_entry(folio_list.next, struct folio, lru);
             list_del(&_folio->lru);
             folio_putback_lru(_folio);
+            DEBUG_COUNTER(folio_remained_cnt, 10000)
         }
 #ifdef DEBUG
         pr_err("%d pages were remained!\n", nr_remaining);

@@ -71,6 +71,14 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
+static long long folio_lru_failed = 0;
+
+#define DEBUG_COUNTER(name, times) \
+	name += 1; \
+	if (name % times == 0){ \
+		printk(#name ": %lld\n", name); \
+	}
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -2354,6 +2362,9 @@ bool folio_isolate_lru(struct folio *folio)
 		lruvec_del_folio(lruvec, folio);
 		unlock_page_lruvec_irq(lruvec);
 		ret = true;
+	}
+	else{
+		DEBUG_COUNTER(folio_lru_failed, 10000)
 	}
 
 	return ret;
