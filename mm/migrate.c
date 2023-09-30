@@ -1974,6 +1974,7 @@ again:
 		if (nr_pages >= NR_MAX_BATCHED_MIGRATION)
 			break;
 	}
+
 	if (nr_pages >= NR_MAX_BATCHED_MIGRATION)
 		list_cut_before(&folios, from, &folio2->lru);
 	else
@@ -2029,6 +2030,117 @@ out:
 
 	if (ret_succeeded)
 		*ret_succeeded = stats.nr_succeeded;
+
+	return rc_gather;
+}
+
+int _neomem_migrate_pages(struct list_head *from, new_page_t get_new_page,
+		free_page_t put_new_page, unsigned long private,
+		enum migrate_mode mode, int reason, unsigned int *ret_succeeded)
+{
+	int rc, rc_gather;
+	int nr_pages;
+	struct folio *folio, *folio2;
+	LIST_HEAD(folios);
+	LIST_HEAD(ret_folios);
+	LIST_HEAD(split_folios);
+	struct migrate_pages_stats stats;
+
+	unsigned long list_len = 0, pages_len = 0;
+	struct folio *folio_count;
+
+	trace_mm_migrate_pages_start(mode, reason);
+
+	memset(&stats, 0, sizeof(stats));
+
+	rc_gather = migrate_hugetlbs(from, get_new_page, put_new_page, private,
+				     mode, reason, &stats, &ret_folios);
+	if (rc_gather < 0)
+		goto out;
+
+again:
+	nr_pages = 0;
+	list_for_each_entry_safe(folio, folio2, from, lru) {
+		/* Retried hugetlb folios will be kept in list  */
+		if (folio_test_hugetlb(folio)) {
+			list_move_tail(&folio->lru, &ret_folios);
+			continue;
+		}
+
+		nr_pages += folio_nr_pages(folio);
+		if (nr_pages >= NR_MAX_BATCHED_MIGRATION)
+			break;
+	}
+
+	list_len = 0;
+	pages_len = 0;
+
+	if (nr_pages >= NR_MAX_BATCHED_MIGRATION){
+		list_for_each_entry(folio_count, from, lru){
+			list_len++;
+			pages_len += folio_nr_pages(folio_count);
+		}
+		printk("migrate_pages: %d pages, %ld NR_MAX_BATCHED_MIGRATION, %ld length, %ld pages_len\n", nr_pages, NR_MAX_BATCHED_MIGRATION, list_len, pages_len);
+	}
+
+	if (nr_pages >= NR_MAX_BATCHED_MIGRATION)
+		list_cut_before(&folios, from, &folio2->lru);
+	else
+		list_splice_init(from, &folios);
+	if (mode == MIGRATE_ASYNC)
+		rc = migrate_pages_batch(&folios, get_new_page, put_new_page, private,
+					 mode, reason, &ret_folios, &split_folios, &stats,
+					 NR_MAX_MIGRATE_PAGES_RETRY);
+	else
+		rc = migrate_pages_sync(&folios, get_new_page, put_new_page, private,
+					mode, reason, &ret_folios, &split_folios, &stats);
+	list_splice_tail_init(&folios, &ret_folios);
+	if (rc < 0) {
+		printk("rc < 0 in _neomem_migrate_pages\n");
+		rc_gather = rc;
+		list_splice_tail(&split_folios, &ret_folios);
+		goto out;
+	}
+	if (!list_empty(&split_folios)) {
+		/*
+		 * Failure isn't counted since all split folios of a large folio
+		 * is counted as 1 failure already.  And, we only try to migrate
+		 * with minimal effort, force MIGRATE_ASYNC mode and retry once.
+		 */
+		migrate_pages_batch(&split_folios, get_new_page, put_new_page, private,
+				    MIGRATE_ASYNC, reason, &ret_folios, NULL, &stats, 1);
+		list_splice_tail_init(&split_folios, &ret_folios);
+	}
+	rc_gather += rc;
+	if (!list_empty(from))
+		goto again;
+out:
+	/*
+	 * Put the permanent failure folio back to migration list, they
+	 * will be put back to the right list by the caller.
+	 */
+	list_splice(&ret_folios, from);
+
+	/*
+	 * Return 0 in case all split folios of fail-to-migrate large folios
+	 * are migrated successfully.
+	 */
+	if (list_empty(from))
+		rc_gather = 0;
+
+	count_vm_events(PGMIGRATE_SUCCESS, stats.nr_succeeded);
+	count_vm_events(PGMIGRATE_FAIL, stats.nr_failed_pages);
+	count_vm_events(THP_MIGRATION_SUCCESS, stats.nr_thp_succeeded);
+	count_vm_events(THP_MIGRATION_FAIL, stats.nr_thp_failed);
+	count_vm_events(THP_MIGRATION_SPLIT, stats.nr_thp_split);
+	trace_mm_migrate_pages(stats.nr_succeeded, stats.nr_failed_pages,
+			       stats.nr_thp_succeeded, stats.nr_thp_failed,
+			       stats.nr_thp_split, mode, reason);
+
+	if (ret_succeeded)
+		*ret_succeeded = stats.nr_succeeded;
+
+	// printk("rc_gather: %d, nr_succeeded: %d\n", rc_gather, stats.nr_succeeded);
 
 	return rc_gather;
 }

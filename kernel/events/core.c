@@ -12736,6 +12736,7 @@ perf_event_create_kernel_counter(struct perf_event_attr *attr, int cpu,
 	event = perf_event_alloc(attr, cpu, task, NULL, NULL,
 				 overflow_handler, context, -1);
 	if (IS_ERR(event)) {
+		printk("perf_event_alloc failed");
 		err = PTR_ERR(event);
 		goto err;
 	}
@@ -12752,6 +12753,7 @@ perf_event_create_kernel_counter(struct perf_event_attr *attr, int cpu,
 	 */
 	ctx = find_get_context(task, event);
 	if (IS_ERR(ctx)) {
+		printk("find_get_context failed");
 		err = PTR_ERR(ctx);
 		goto err_alloc;
 	}
@@ -12759,12 +12761,14 @@ perf_event_create_kernel_counter(struct perf_event_attr *attr, int cpu,
 	WARN_ON_ONCE(ctx->parent_ctx);
 	mutex_lock(&ctx->mutex);
 	if (ctx->task == TASK_TOMBSTONE) {
+		printk("ctx->task == TASK_TOMBSTONE");
 		err = -ESRCH;
 		goto err_unlock;
 	}
 
 	pmu_ctx = find_get_pmu_context(pmu, ctx, event);
 	if (IS_ERR(pmu_ctx)) {
+		printk("find_get_pmu_context failed");
 		err = PTR_ERR(pmu_ctx);
 		goto err_unlock;
 	}
@@ -12780,12 +12784,14 @@ perf_event_create_kernel_counter(struct perf_event_attr *attr, int cpu,
 		struct perf_cpu_context *cpuctx =
 			container_of(ctx, struct perf_cpu_context, ctx);
 		if (!cpuctx->online) {
+			printk("!cpuctx->online");
 			err = -ENODEV;
 			goto err_pmu_ctx;
 		}
 	}
 
 	if (!exclusive_event_installable(event, ctx)) {
+		printk("!exclusive_event_installable(event, ctx)");
 		err = -EBUSY;
 		goto err_pmu_ctx;
 	}

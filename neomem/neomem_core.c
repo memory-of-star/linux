@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/wait.h>
 #include <linux/page-flags.h>
+#include <linux/swap.h>
 
 // #define DEBUG 1
 
@@ -55,7 +56,7 @@ static void get_states(void){
 }
 
 // for neoprof-base promotion
-static bool neomem_promotion_enabled = true;
+static bool neomem_promotion_enabled = false;
 
 bool neomem_debug_enabled = false;
 
@@ -131,19 +132,15 @@ static int neomem_migrate_pages(void)
     int nr_succeeded;
     struct folio *_folio;
 
+    unsigned hp_count = 0;
+
     // folio_list is the list of pages to be migrated
     LIST_HEAD(folio_list);
     list_for_each_entry_safe(hp, tmp, &hp_entry, list) {
         pfn = PHYS_PFN(hp->paddr);
-#ifdef DEBUG
-        if(pfn > 0)
-            printk("PFN to migrate: %lx",pfn);
-#endif
+        hp_count++;
         if (!pfn_valid(pfn))
         {
-#ifdef DEBUG
-            pr_err("pfn %lx is invalid\n", pfn);
-#endif
             DEBUG_COUNTER(pfn_invalid_cnt, 100000)
             continue;
         }
@@ -154,28 +151,20 @@ static int neomem_migrate_pages(void)
         }
         page = compound_head(page);
         pfn = page_to_pfn(page);
-        // migrate_misplaced_page_no_vma(page, FAST_NODE_ID);
+
         struct folio *folio = damon_get_folio(pfn);
         if (!folio)
         {
-#ifdef DEBUG
-            pr_err("folio is invalid, pfn: %lx\n", pfn);
-#endif
             DEBUG_COUNTER(folio_invalid_cnt, 100000)
             continue;
         }
         if (!folio_isolate_lru(folio)) {
             folio_put(folio);
-#ifdef DEBUG
-            pr_err("folio is not lru, pfn: %lx\n", pfn);
-#endif
             DEBUG_COUNTER(folio_not_lru_cnt_after_get, 100000)
             continue;
         }
         if (folio_test_unevictable(folio)){
-#ifdef DEBUG
-            pr_err("folio is unevictable, pfn: %lx\n", pfn);
-#endif
+
             DEBUG_COUNTER(folio_unevictable_cnt, 100000)
             folio_putback_lru(folio);
         }
@@ -185,7 +174,9 @@ static int neomem_migrate_pages(void)
         folio_put(folio);
     }
 
-    nr_remaining = migrate_pages(&folio_list, alloc_misplaced_dst_page,
+    // printk("hp_count: %ld\n", hp_count);
+
+    nr_remaining = _neomem_migrate_pages(&folio_list, alloc_misplaced_dst_page,
                      NULL, 0, MIGRATE_ASYNC,
                      MR_NUMA_MISPLACED, &nr_succeeded);
 
@@ -196,9 +187,6 @@ static int neomem_migrate_pages(void)
             folio_putback_lru(_folio);
             DEBUG_COUNTER(folio_remained_cnt, 10000)
         }
-#ifdef DEBUG
-        pr_err("%d pages were remained!\n", nr_remaining);
-#endif
     }
 
     if (nr_succeeded) {
@@ -209,9 +197,6 @@ static int neomem_migrate_pages(void)
             migrated_pages = 0;
         }
 
-#ifdef DEBUG
-        pr_err("%d pages were migrated!\n", nr_succeeded);
-#endif
     }
     BUG_ON(!list_empty(&folio_list));	
 

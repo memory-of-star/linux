@@ -70,6 +70,9 @@ int migrate_folio(struct address_space *mapping, struct folio *dst,
 int migrate_pages(struct list_head *l, new_page_t new, free_page_t free,
 		  unsigned long private, enum migrate_mode mode, int reason,
 		  unsigned int *ret_succeeded);
+int _neomem_migrate_pages(struct list_head *l, new_page_t new, free_page_t free,
+		  unsigned long private, enum migrate_mode mode, int reason,
+		  unsigned int *ret_succeeded);
 struct page *alloc_migration_target(struct page *page, unsigned long private);
 bool isolate_movable_page(struct page *page, isolate_mode_t mode);
 
