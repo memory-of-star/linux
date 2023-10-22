@@ -19,6 +19,15 @@
 #include "../internal.h"
 #include "ops-common.h"
 
+#define DEBUG_COUNTER(name, times) \
+	name += 1; \
+	if (name % times == 0){ \
+		printk(#name ": %lld\n", name); \
+	}
+
+static unsigned long long abit_pfn_invalid_cnt = 0;
+static unsigned long long abit_page_not_existed_cnt = 0;
+
 unsigned long long migrated_pages_cnt = 0;
 
 static bool __damon_pa_mkold(struct folio *folio, struct vm_area_struct *vma,
@@ -311,33 +320,53 @@ static unsigned long damon_pa_migrate(struct damon_region *r,
 	LIST_HEAD(folio_list);
 	int nr_remaining;
 	unsigned int nr_succeeded = 0;
+	unsigned long pfn;
+	struct page *page;
+	struct folio *__folio = NULL;
+
 #ifdef DETAIL_INFO
 	size_t len = 0;
 #endif
 
 	for (addr = r->ar.start; addr < r->ar.end; addr += PAGE_SIZE) {
-		struct folio *folio = damon_get_folio(PHYS_PFN(addr));
 
-		if (!folio)
+		pfn = PHYS_PFN(addr);
+        if (!pfn_valid(pfn))
+        {
+            DEBUG_COUNTER(abit_pfn_invalid_cnt, 100000)
+            continue;
+        }
+        page = pfn_to_page(pfn);
+        if (!page){
+            DEBUG_COUNTER(abit_page_not_existed_cnt, 10000)
+            continue;
+        }
+        page = compound_head(page);
+        pfn = page_to_pfn(page);
+
+
+		__folio = damon_get_folio(pfn);
+
+		if (!__folio)
 			continue;
 
-		if (damos_pa_filter_out(s, folio)) {
-			folio_put(folio);
+		if (damos_pa_filter_out(s, __folio)) {
+			folio_put(__folio);
 			continue;
 		}
 
 
-		folio_clear_referenced(folio);
-		folio_test_clear_young(folio);
-		if (!folio_isolate_lru(folio)) {
-			folio_put(folio);
+		folio_clear_referenced(__folio);
+		folio_test_clear_young(__folio);
+		if (!folio_isolate_lru(__folio)) {
+			folio_put(__folio);
 			continue;
 		}
-		if (folio_test_unevictable(folio))
-			folio_putback_lru(folio);
+		if (folio_test_unevictable(__folio))
+			folio_putback_lru(__folio);
 		else
-			list_add(&folio->lru, &folio_list);
-		folio_put(folio);
+			list_add(&__folio->lru, &folio_list);
+		folio_put(__folio);
 	}
 
 #ifdef DETAIL_INFO

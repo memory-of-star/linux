@@ -2080,7 +2080,7 @@ again:
 			list_len++;
 			pages_len += folio_nr_pages(folio_count);
 		}
-		printk("migrate_pages: %d pages, %ld NR_MAX_BATCHED_MIGRATION, %ld length, %ld pages_len\n", nr_pages, NR_MAX_BATCHED_MIGRATION, list_len, pages_len);
+		// printk("migrate_pages: %d pages, %ld NR_MAX_BATCHED_MIGRATION, %ld length, %ld pages_len\n", nr_pages, NR_MAX_BATCHED_MIGRATION, list_len, pages_len);
 	}
 
 	if (nr_pages >= NR_MAX_BATCHED_MIGRATION)
