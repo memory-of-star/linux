@@ -4745,7 +4745,7 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 	target_nid = numa_migrate_prep(page, vma, vmf->address, page_nid,
 			&flags);
 	if (target_nid == NUMA_NO_NODE) {
-		DEBUG_COUNTER(numa_migrate_no_node_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_no_node_cnt, 1000000)
 		put_page(page);
 		goto out_map;
 	}
@@ -4754,11 +4754,11 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 
 	/* Migrate to the requested node */
 	if (migrate_misplaced_page(page, vma, target_nid)) {
-		DEBUG_COUNTER(numa_migrate_pages_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_pages_cnt, 1000000)
 		page_nid = target_nid;
 		flags |= TNF_MIGRATED;
 	} else {
-		DEBUG_COUNTER(numa_migrate_failed_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_failed_cnt, 1000000)
 		flags |= TNF_MIGRATE_FAIL;
 		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
 		spin_lock(vmf->ptl);

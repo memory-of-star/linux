@@ -2665,14 +2665,14 @@ static int numamigrate_isolate_page(pg_data_t *pgdat, struct page *page)
 
 	/* Do not migrate THP mapped by multiple processes */
 	if (PageTransHuge(page) && total_mapcount(page) > 1){
-		DEBUG_COUNTER(numa_migrate_thp_fail_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_thp_fail_cnt, 1000000)
 		return 0;
 	}
 
 	/* Avoid migrating to a node that is nearly full */
 	if (!migrate_balanced_pgdat(pgdat, nr_pages)) {
 		int z;
-		DEBUG_COUNTER(numa_migrate_nearlyfull_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_nearlyfull_cnt, 1000000)
 		if (!(sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING))
 			return 0;
 		for (z = pgdat->nr_zones - 1; z >= 0; z--) {
@@ -2684,7 +2684,7 @@ static int numamigrate_isolate_page(pg_data_t *pgdat, struct page *page)
 	}
 
 	if (!isolate_lru_page(page)){
-		DEBUG_COUNTER(numa_migrate_isolate_fail_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_isolate_fail_cnt, 1000000)
 		return 0;
 	}
 
@@ -2728,13 +2728,13 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 	 * dirty pages in MIGRATE_ASYNC mode which is a waste of cycles.
 	 */
 	if (page_is_file_lru(page) && PageDirty(page)){
-		DEBUG_COUNTER(numa_migrate_fail_sharelib_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_fail_sharelib_cnt, 1000000)
 		goto out;
 	}
 
 	isolated = numamigrate_isolate_page(pgdat, page);
 	if (!isolated){
-		DEBUG_COUNTER(numa_migrate_isolate_lru_fail_cnt, 10000)
+		DEBUG_COUNTER(numa_migrate_isolate_lru_fail_cnt, 1000000)
 		goto out;
 	}
 
@@ -2744,7 +2744,7 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 				     MR_NUMA_MISPLACED, &nr_succeeded);
 	if (nr_remaining) {
 		if (!list_empty(&migratepages)) {
-			DEBUG_COUNTER(numa_migrate_remained_cnt, 10000)
+			DEBUG_COUNTER(numa_migrate_remained_cnt, 1000000)
 			list_del(&page->lru);
 			mod_node_page_state(page_pgdat(page), NR_ISOLATED_ANON +
 					page_is_file_lru(page), -nr_pages);

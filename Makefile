@@ -2,7 +2,7 @@
 VERSION = 6
 PATCHLEVEL = 3
 SUBLEVEL = 0
-EXTRAVERSION = -neomem_damonabit_neopebs_merged_16G_16G
+EXTRAVERSION = -neomem_damonabit_neopebs_merged_16G_16G_v2
 NAME = Hurr durr I'ma ninja sloth
 
 # *DOCUMENTATION*
