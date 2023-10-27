@@ -14,6 +14,11 @@
 #define RESET_REG 0x200
 #define NR_PAGE_IN 0x400
 
+#define HIST_NUM_REG 0x900
+#define START_RD_HIST 0x600
+#define HIST_REG 0x800
+#define ACCESS_SAMPLE_INTERVAL 0x500
+
 // for state monitor
 #define STATE_SAMPLE_INTERVAL 0x400
 #define TOTAL_STATE_SAMPLE_CNT 0x500
@@ -66,6 +71,27 @@ static void __exit neoprof_exit(void)
     if (mmio_base)
         iounmap(mmio_base);
 }
+
+u32 get_nr_hist(void)
+{
+    return neoprof_read(HIST_NUM_REG);
+}
+
+void start_rd_hist(void)
+{
+    neoprof_write(START_RD_HIST, 0x1);
+}
+
+void get_hist(u32 nr, u32 *hist)
+{
+    int i;
+    int hist_num = min(nr, HIST_SIZE);
+    for (i = 0; i < nr; i++)
+    {
+        hist[i] = neoprof_read(HIST_REG);
+    }
+}
+
 /*
  * Read out the number of total hot pages
  */
@@ -109,6 +135,11 @@ void set_hotness_threshold(u32 threshold)
 void reset_neoprof(void)
 {
     neoprof_write(RESET_REG, 0x1);
+}
+
+void set_access_sample_interval(u32 interval)
+{
+    neoprof_write(ACCESS_SAMPLE_INTERVAL, interval);
 }
 
 /* 

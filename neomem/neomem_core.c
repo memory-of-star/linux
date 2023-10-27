@@ -19,6 +19,8 @@ static struct list_head hp_entry;
 // static struct mutex kneomemd_lock;
 static struct task_struct * kneomemd;
 
+static u32 *hist;
+
 static unsigned long migrated_pages = 0;
 static int iter = 0;
 static DECLARE_WAIT_QUEUE_HEAD(kneomemd_wait);
@@ -36,6 +38,17 @@ static u32 total_state_sample_cnt = 0;
 static u32 wr_state_sample_cnt = 0;
 static u32 rd_state_sample_cnt = 0;
 
+static u32 access_sample_interval = 0;
+
+
+static void kneomem_usleep(unsigned long usecs)
+{
+    /* See Documentation/timers/timers-howto.rst for the thresholds */
+    if (usecs > 20 * USEC_PER_MSEC)
+        schedule_timeout_idle(usecs_to_jiffies(usecs));
+    else
+        usleep_idle_range(usecs, usecs + 1);
+}
 
 
 static void get_states(void){
@@ -192,9 +205,25 @@ static int neomem_migrate_pages(void)
     return 0;
 }
 
+void get_hist_from_neoprof(void){
+    u32 nr_hist = 0;
+    int retry_times = 0;
+    start_rd_hist();
+    while ((!nr_hist) && (retry_times < 100)){
+        get_nr_hist();
+        kneomem_usleep(10);
+        retry_times++;
+    }
+    get_hist(nr_hist, hist);
+    if (retry_times >= 100){
+        printk("Error: cannot get hist from neoprof\n");
+    }
+}
+
 static void do_promotion(void)
 {
     int err = 0;
+    get_hist_from_neoprof();
     /*
      *  Step 1: get the hotpages from neoprof
      *  hotpages are appended to hp_entry
@@ -237,14 +266,7 @@ static bool kneomemd_need_stop(void)
     return false;
 }
 
-static void kneomem_usleep(unsigned long usecs)
-{
-    /* See Documentation/timers/timers-howto.rst for the thresholds */
-    if (usecs > 20 * USEC_PER_MSEC)
-        schedule_timeout_idle(usecs_to_jiffies(usecs));
-    else
-        usleep_idle_range(usecs, usecs + 1);
-}
+
 
 /*
  * The monitoring daemon that runs as a kernel thread
@@ -284,6 +306,7 @@ static int kneomemd_fn(void * data)
 int neomem_start(void)
 {
     hotpage_init();
+    hist = kmalloc(sizeof(u32) * HIST_SIZE, GFP_KERNEL);
     
     int err;
     err = -EBUSY;
@@ -505,6 +528,62 @@ static struct kobj_attribute neomem_debug_attr =
 	__ATTR(debug, 0644, neomem_debug_show,
 	       neomem_debug_store);
 
+
+static ssize_t neomem_hist_show(struct kobject *kobj,
+					  struct kobj_attribute *attr, char *buf)
+{
+    int ret = 0;
+    char msg[2000] = {0};
+    for (int i = 0; i < HIST_SIZE; i++)
+    {
+        sprintf(msg, "%shist %d: %d\n", msg, i, hist[i]);
+    }
+    ret = sysfs_emit(buf, "%s", msg);
+    return ret;
+}
+
+static ssize_t neomem_hist_store(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
+{
+	return count;
+}
+
+
+static struct kobj_attribute neomem_hist_attr =
+	__ATTR(neomem_hist, 0644, neomem_hist_show,
+	       neomem_hist_store);
+
+
+static ssize_t neomem_access_sample_interval_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", access_sample_interval);
+}
+
+static ssize_t neomem_access_sample_interval_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 interval;
+
+    ret = kstrtou32(buf, 0, &interval);
+    if (ret)
+        return ret;
+
+    access_sample_interval = interval;
+    set_access_sample_interval(access_sample_interval);
+
+    return count;
+}
+
+
+static struct kobj_attribute neomem_access_sample_interval_attr =
+	__ATTR(neomem_access_sample_interval, 0644, neomem_access_sample_interval_show,
+	       neomem_access_sample_interval_store);
+
+
 static struct attribute *neomem_attrs[] = {
 	&neomem_promotion_enabled_attr.attr,
     &neomem_threshold_attr.attr,
@@ -513,6 +592,8 @@ static struct attribute *neomem_attrs[] = {
     &neomem_state_sample_interval_attr.attr,
     &neomem_states_attr.attr, 
     &neomem_debug_attr.attr,
+    &neomem_hist_attr.attr,
+    &neomem_access_sample_interval_attr.attr,
 	NULL,
 };
 
