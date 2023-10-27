@@ -26,7 +26,7 @@ static DECLARE_WAIT_QUEUE_HEAD(kneomemd_wait);
 static unsigned long wait_time = 100000; // 100ms
 static int FAST_NODE_ID = 0;
 // static u64 migration_cnt = 0;
-static u64 scan_cnt = 0;
+
 static u32 clear_interval = 10;
 static u32 hotness_threshold = 2;
 
@@ -36,18 +36,7 @@ static u32 total_state_sample_cnt = 0;
 static u32 wr_state_sample_cnt = 0;
 static u32 rd_state_sample_cnt = 0;
 
-static unsigned long long pfn_invalid_cnt = 0;
-static unsigned long long folio_invalid_cnt = 0;
-static unsigned long long folio_not_lru_cnt_after_get = 0;
-static unsigned long long folio_unevictable_cnt = 0;
-static unsigned long long folio_remained_cnt = 0;
-static unsigned long long page_not_existed_cnt = 0;
 
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
 
 static void get_states(void){
     total_state_sample_cnt = get_total_state_sample_cnt();
@@ -141,12 +130,12 @@ static int neomem_migrate_pages(void)
         hp_count++;
         if (!pfn_valid(pfn))
         {
-            DEBUG_COUNTER(pfn_invalid_cnt, 100000)
+            count_vm_event(PFN_INVALID__NEOMEM_MIGRATE_PAGES);
             continue;
         }
         page = pfn_to_page(pfn);
         if (!page){
-            DEBUG_COUNTER(page_not_existed_cnt, 10000)
+            count_vm_event(PAGE_NOT_EXISTED__NEOMEM_MIGRATE_PAGES);
             continue;
         }
         page = compound_head(page);
@@ -155,17 +144,17 @@ static int neomem_migrate_pages(void)
         struct folio *folio = damon_get_folio(pfn);
         if (!folio)
         {
-            DEBUG_COUNTER(folio_invalid_cnt, 100000)
+            count_vm_event(FOLIO_INVALID__NEOMEM_MIGRATE_PAGES);
             continue;
         }
         if (!folio_isolate_lru(folio)) {
             folio_put(folio);
-            DEBUG_COUNTER(folio_not_lru_cnt_after_get, 100000)
+            count_vm_event(FOLIO_NOT_LRU_CNT_AFTER_GET__NEOMEM_MIGRATE_PAGES);
             continue;
         }
         if (folio_test_unevictable(folio)){
 
-            DEBUG_COUNTER(folio_unevictable_cnt, 100000)
+            count_vm_event(FOLIO_UNEVICTABLE__NEOMEM_MIGRATE_PAGES);
             folio_putback_lru(folio);
         }
         else{
@@ -185,7 +174,7 @@ static int neomem_migrate_pages(void)
             _folio = list_entry(folio_list.next, struct folio, lru);
             list_del(&_folio->lru);
             folio_putback_lru(_folio);
-            DEBUG_COUNTER(folio_remained_cnt, 10000)
+            count_vm_event(FOLIO_REMAINED__NEOMEM_MIGRATE_PAGES);
         }
     }
 
@@ -262,6 +251,7 @@ static void kneomem_usleep(unsigned long usecs)
  */
 static int kneomemd_fn(void * data)
 {
+    u64 scan_cnt = 0;
     pr_info("kneomemd starts\n");
     while (!kneomemd_need_stop()) {        
         // control the scan frequency

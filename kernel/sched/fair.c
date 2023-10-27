@@ -56,11 +56,6 @@
 #include "stats.h"
 #include "autogroup.h"
 
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
 
 /*
  * Targeted preemption latency for CPU-bound tasks:

@@ -27,11 +27,6 @@
 #define CPU_NUMBER 256
 #define MAX_EVENT_NUM 10
 
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
 
 
 // static struct mutex kneomemd_lock;
@@ -59,15 +54,6 @@ static bool neopebs_promotion_enabled = false;
 //pebs_sampling_period: how many instructions it takes to overflow
 static u32 pebs_sampling_period = 500;
 static u32 pebs_config = 0x08d3;
-
-static unsigned long long pebs_local_access_cnt = 0;
-static unsigned long long pebs_remote_access_cnt = 0;
-
-static unsigned long long pebs_pfn_not_valid_cnt = 0;
-static unsigned long long pebs_page_not_valid_cnt = 0;
-static unsigned long long pebs_folio_not_valid_cnt = 0;
-static unsigned long long pebs_folio_isolated_failed_cnt = 0;
-static unsigned long long pebs_folio_unevictable_cnt = 0;
 
 // static struct hotpage {
 //     u64 huge_pfn;
@@ -122,7 +108,7 @@ void neopebs_overflow_callback(struct perf_event *event, struct perf_sample_data
     pfn = (phys_addr >> 12);
     
     if ((pfn < NODE_DATA(1)->node_start_pfn) || (pfn > (NODE_DATA(1)->node_start_pfn + NODE_DATA(1)->node_spanned_pages))){
-        DEBUG_COUNTER(pebs_local_access_cnt, 1000)
+        count_vm_event(PEBS_LOCAL_ACCESS__NEOPEBS_OVERFLOW_CALLBACK);
         if (debug1 % 1000 == 0){
             printk("pfn: %lld, node1 start: %lld, node1 end: %lld, addr: %llx\n", pfn, NODE_DATA(1)->node_start_pfn, NODE_DATA(1)->node_start_pfn + NODE_DATA(1)->node_spanned_pages, addr);
         }
@@ -130,7 +116,7 @@ void neopebs_overflow_callback(struct perf_event *event, struct perf_sample_data
         return;
     }
     else{
-        DEBUG_COUNTER(pebs_remote_access_cnt, 1000)
+        count_vm_event(PEBS_REMOTE_ACCESS__NEOPEBS_OVERFLOW_CALLBACK);
         if (debug2 % 1000 == 0){
             printk("pfn: %lld, node0 start: %lld, node0 end: %lld, addr: %llx\n", pfn, NODE_DATA(0)->node_start_pfn, NODE_DATA(0)->node_start_pfn + NODE_DATA(0)->node_spanned_pages, addr);
         }
@@ -261,12 +247,12 @@ static void neopebsd_do_promotion(void){
             u64 _pfn;
             if (!pfn_valid(pfn))
             {
-                DEBUG_COUNTER(pebs_pfn_not_valid_cnt, 1000)
+                count_vm_event(PEBS_PFN_NOT_VALID__NEOPEBSD_DO_PROMOTION);
                 return;
             }
             page = pfn_to_page(pfn);
             if (!page){
-                DEBUG_COUNTER(pebs_page_not_valid_cnt, 1000)
+                count_vm_event(PEBS_PAGE_NOT_VALID__NEOPEBSD_DO_PROMOTION);
                 return;
             }
             page = compound_head(page);
@@ -284,16 +270,16 @@ static void neopebsd_do_promotion(void){
             _folio = damon_get_folio(_pfn);
             if (!_folio)
             {
-                DEBUG_COUNTER(pebs_folio_not_valid_cnt, 1000)
+                count_vm_event(PEBS_FOLIO_NOT_VALID__NEOPEBSD_DO_PROMOTION);
                 return;
             }
             if (!folio_isolate_lru(_folio)) {
                 folio_put(_folio);
-                DEBUG_COUNTER(pebs_folio_isolated_failed_cnt, 1000)
+                count_vm_event(PEBS_FOLIO_ISOLATED_FAILED__NEOPEBSD_DO_PROMOTION);
                 return;
             }
             if (folio_test_unevictable(_folio)){
-                DEBUG_COUNTER(pebs_folio_unevictable_cnt, 1000)
+                count_vm_event(PEBS_FOLIO_UNEVICTABLE__NEOPEBSD_DO_PROMOTION);
                 folio_putback_lru(_folio);
                 return;
             }

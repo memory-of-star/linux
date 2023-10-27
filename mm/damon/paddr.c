@@ -19,14 +19,6 @@
 #include "../internal.h"
 #include "ops-common.h"
 
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
-
-static unsigned long long abit_pfn_invalid_cnt = 0;
-static unsigned long long abit_page_not_existed_cnt = 0;
 
 unsigned long long migrated_pages_cnt = 0;
 
@@ -333,12 +325,12 @@ static unsigned long damon_pa_migrate(struct damon_region *r,
 		pfn = PHYS_PFN(addr);
         if (!pfn_valid(pfn))
         {
-            DEBUG_COUNTER(abit_pfn_invalid_cnt, 100000)
+            count_vm_event(ABIT_PFN_INVALID__DAMON_PA_MIGRATE);
             continue;
         }
         page = pfn_to_page(pfn);
         if (!page){
-            DEBUG_COUNTER(abit_page_not_existed_cnt, 10000)
+            count_vm_event(ABIT_PAGE_NOT_EXISTED__DAMON_PA_MIGRATE);
             continue;
         }
         page = compound_head(page);

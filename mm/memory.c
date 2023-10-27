@@ -105,15 +105,6 @@ EXPORT_SYMBOL(mem_map);
 
 static vm_fault_t do_fault(struct vm_fault *vmf);
 
-static unsigned long long numa_migrate_no_node_cnt = 0;
-static unsigned long long numa_migrate_pages_cnt = 0;
-static unsigned long long numa_migrate_failed_cnt = 0;
-
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
 
 /*
  * A number of key systems in x86 including ioremap() rely on the assumption
@@ -4745,7 +4736,7 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 	target_nid = numa_migrate_prep(page, vma, vmf->address, page_nid,
 			&flags);
 	if (target_nid == NUMA_NO_NODE) {
-		DEBUG_COUNTER(numa_migrate_no_node_cnt, 1000000)
+		count_vm_event(NUMA_MIGRATE_NO_NODE__DO_NUMA_PAGE);
 		put_page(page);
 		goto out_map;
 	}
@@ -4754,11 +4745,11 @@ static vm_fault_t do_numa_page(struct vm_fault *vmf)
 
 	/* Migrate to the requested node */
 	if (migrate_misplaced_page(page, vma, target_nid)) {
-		DEBUG_COUNTER(numa_migrate_pages_cnt, 1000000)
+		count_vm_event(NUMA_MIGRATE_PAGES__DO_NUMA_PAGE);
 		page_nid = target_nid;
 		flags |= TNF_MIGRATED;
 	} else {
-		DEBUG_COUNTER(numa_migrate_failed_cnt, 1000000)
+		count_vm_event(NUMA_MIGRATE_FAILED__DO_NUMA_PAGE);
 		flags |= TNF_MIGRATE_FAIL;
 		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
 		spin_lock(vmf->ptl);

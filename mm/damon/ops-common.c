@@ -12,16 +12,6 @@
 
 #include "ops-common.h"
 
-static unsigned long long not_page_or_pagetail_cnt = 0;
-static unsigned long long folio_not_lru_cnt = 0;
-static unsigned long long folio_get_failed_cnt = 0;
-static unsigned long long damon_get_folio_final_failed_cnt = 0;
-
-#define DEBUG_COUNTER(name, times) \
-	name += 1; \
-	if (name % times == 0){ \
-		printk(#name ": %lld\n", name); \
-	}
 /*
  * Get an online page for a pfn if it's in the LRU list.  Otherwise, returns
  * NULL.
@@ -35,22 +25,22 @@ struct folio *damon_get_folio(unsigned long pfn)
 	struct folio *folio;
 
 	if (!page || PageTail(page)){
-		DEBUG_COUNTER(not_page_or_pagetail_cnt, 100000)
+		count_vm_event(NOT_PAGE_OR_PAGETAIL__DAMON_GET_FOLIO);
 		return NULL;
 	}
 
 	folio = page_folio(page);
 	if (!folio_test_lru(folio) || !folio_try_get(folio)){
 		if (!folio_test_lru(folio)){
-			DEBUG_COUNTER(folio_not_lru_cnt, 100000)
+			count_vm_event(FOLIO_NOT_LRU__DAMON_GET_FOLIO);
 		}
 		else{
-			DEBUG_COUNTER(folio_get_failed_cnt, 10000)
+			count_vm_event(FOLIO_GET_FAILED__DAMON_GET_FOLIO);
 		}
 		return NULL;
 	}
 	if (unlikely(page_folio(page) != folio || !folio_test_lru(folio))) {
-		DEBUG_COUNTER(damon_get_folio_final_failed_cnt, 10000)
+		count_vm_event(DAMON_GET_FOLIO_FINAL_FAILED__DAMON_GET_FOLIO);
 		folio_put(folio);
 		folio = NULL;
 	}
