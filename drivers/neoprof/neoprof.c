@@ -86,7 +86,7 @@ void get_hist(u32 nr, u32 *hist)
 {
     int i;
     int hist_num = min(nr, HIST_SIZE);
-    for (i = 0; i < nr; i++)
+    for (i = 0; i < hist_num; i++)
     {
         hist[i] = neoprof_read(HIST_REG);
     }

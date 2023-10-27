@@ -6,7 +6,7 @@
 #include <linux/platform_device.h>
 #include <linux/io.h>
 
-#define HIST_SIZE 128
+#define HIST_SIZE 64
 
 /*
     * The following functions are used to access the neoprof device

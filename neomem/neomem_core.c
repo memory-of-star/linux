@@ -209,9 +209,9 @@ void get_hist_from_neoprof(void){
     u32 nr_hist = 0;
     int retry_times = 0;
     start_rd_hist();
-    while ((!nr_hist) && (retry_times < 100)){
-        get_nr_hist();
-        kneomem_usleep(10);
+    while ((!nr_hist) && (retry_times < 10)){
+        kneomem_usleep(100000);
+        nr_hist = get_nr_hist();
         retry_times++;
     }
     get_hist(nr_hist, hist);
@@ -307,6 +307,7 @@ int neomem_start(void)
 {
     hotpage_init();
     hist = kmalloc(sizeof(u32) * HIST_SIZE, GFP_KERNEL);
+    memset(hist, 0, sizeof(u32) * HIST_SIZE);
     
     int err;
     err = -EBUSY;
