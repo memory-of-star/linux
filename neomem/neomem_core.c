@@ -210,12 +210,12 @@ void get_hist_from_neoprof(void){
     int retry_times = 0;
     start_rd_hist();
     while ((!nr_hist) && (retry_times < 10)){
-        kneomem_usleep(100000);
+        kneomem_usleep(500);
         nr_hist = get_nr_hist();
         retry_times++;
     }
     get_hist(nr_hist, hist);
-    if (retry_times >= 100){
+    if (retry_times >= 10){
         printk("Error: cannot get hist from neoprof\n");
     }
 }
