@@ -1428,6 +1428,18 @@ const char * const vmstat_text[] = {
 	"pebs_folio_not_valid__neopebsd_do_promotion",
 	"pebs_folio_isolated_failed__neopebsd_do_promotion",
 	"pebs_folio_unevictable__neopebsd_do_promotion",
+	"neomem_migrate_pages",
+	"neomem_pfn_invalid",
+	"neomem_pfn_to_page_failed",
+	"neomem_page_tail_or_invalid",
+	"neomem_folio_not_lru_or_get_folio_failed",
+	"neomem_folio_late_failed",
+	"neomem_folio_invalid",
+	"neomem_folio_isolate_lru_failed",
+	"neomem_folio_unevictable",
+	"neomem_add_hot_page",
+	"neomem_migrate_pages_remained",
+	"neomem_reset_neoprof"
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA || CONFIG_MEMCG */

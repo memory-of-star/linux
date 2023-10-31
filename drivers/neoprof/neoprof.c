@@ -106,15 +106,14 @@ u64 get_hotpage(void)
 {
     volatile u64 hp_addr = neoprof_read(HOTPAGE_REG); // [63:12] is the address of hot page
     if (hp_addr < DDR_OFFSET){
-            // printk("Error: hot page address 0x%lx is not in CXL Mem\n", hp_addr);
             
-            if (neomem_debug_enabled)
-            {
-                num_error_cxl_pages += 1;
-                if (num_error_cxl_pages % 100000 == 0)
-                    printk("Error: %lld hot page addresses not in CXL Mem\n", num_error_cxl_pages);
-            }
-            // return 0;
+            // if (neomem_debug_enabled)
+            // {
+            //     num_error_cxl_pages += 1;
+            //     if (num_error_cxl_pages % 100000 == 0)
+            //         printk("Error: %lld hot page addresses not in CXL Mem\n", num_error_cxl_pages);
+            // }
+            
             hp_addr = 0x400000 + hp_addr;
     }
     // if (neomem_debug_enabled)
