@@ -34,8 +34,11 @@ static u32 neomem_states_sample_write_cnt = 0;
 static u32 neomem_states_sample_read_cnt = 0;
 
 // neomem_hist, showing the distribution of memory access in a period
+static u32 neomem_hist_scan_period = 50;              // get the hist every certain period
 static u32 *neomem_hist;                               // store the information
-
+static u32 neomem_hist_nr_bins = 64;                   // number of bins in the histogram
+static u32 neomem_error_bound = 0;                     // error bound for the estimated hotness
+static u32 neomem_percentile = 50;                     // the p-percentile value for error bound estimation
 
 static void kneomem_usleep(unsigned long usecs)
 {
@@ -142,11 +145,29 @@ static int get_hotpages_from_neoprof(void)
 }
 
 
+void get_error_bound(void){
+    u32 total_count = 0;
+    for(int i = 0; i < neomem_hist_nr_bins; i++){
+        total_count += neomem_hist[i];
+    }
+    u32 p_percentile = total_count * neomem_percentile / 100;
+    u32 new_error_bound = 0;
+    u32 accumulated_count = 0;
+    for(int i = 0; i < neomem_hist_nr_bins; i++){
+        accumulated_count += neomem_hist[i];
+        if (accumulated_count >= p_percentile){
+            new_error_bound = i;
+            break;
+        }
+    }
+    neomem_error_bound = new_error_bound;
+}
+
 void get_hist_from_neoprof(void){
     u32 nr_hist = 0;
     int retry_times = 0;
     start_rd_hist();
-    while ((!nr_hist) && (retry_times < 10)){
+    while ((nr_hist != neomem_hist_nr_bins) && (retry_times < 10)){
         kneomem_usleep(500);
         nr_hist = get_nr_hist();
         retry_times++;
@@ -154,9 +175,10 @@ void get_hist_from_neoprof(void){
     get_hist(nr_hist, neomem_hist);
     if (retry_times >= 10){
         printk("Error: cannot get hist from neoprof\n");
+        return;
     }
+    get_error_bound();
 }
-
 
 static int kneomemd_migration(void *data){
     LIST_HEAD(hotpage_list_local);
@@ -217,11 +239,12 @@ static int kneomemd_scanning(void * data)
 
         kthread_run(kneomemd_migration, ctx, "kneomemd.migration");
         // kneomemd_migration(ctx);
+        if(scan_cnt % neomem_hist_scan_period == 0){
+            get_hist_from_neoprof();
+        }
 
-        get_hist_from_neoprof();
         neomem_get_states();
 
-        scan_cnt++;
         if(scan_cnt % neomem_scanning_reset_period == 0){
 
             count_vm_event(NEOMEM_RESET_NEOPROF);
@@ -229,6 +252,7 @@ static int kneomemd_scanning(void * data)
             // clear the states in neoprof
             reset_neoprof();
         }
+        scan_cnt++;
     }
     printk("kneomemd_scanning exit\n");
     return 0;
@@ -470,6 +494,32 @@ static struct kobj_attribute neomem_states_sample_period_attr =
  *  neomem_hist
  */
 
+static ssize_t neomem_hist_scan_period_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", neomem_hist_scan_period);
+}
+
+static ssize_t neomem_hist_scan_period_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_neomem_hist_scan_period;
+
+    ret = kstrtou32(buf, 0, &new_neomem_hist_scan_period);
+    if (ret)
+        return ret;
+
+    neomem_hist_scan_period = new_neomem_hist_scan_period;
+    return count;
+}
+
+static struct kobj_attribute neomem_hist_scan_period_attr =
+    __ATTR(neomem_hist_scan_period, 0644, neomem_hist_scan_period_show,
+           neomem_hist_scan_period_store);
+
+
 static ssize_t neomem_hist_show(struct kobject *kobj,
 					  struct kobj_attribute *attr, char *buf)
 {
@@ -491,13 +541,47 @@ static ssize_t neomem_hist_store(struct kobject *kobj,
 	return count;
 }
 
-
 static struct kobj_attribute neomem_hist_attr =
 	__ATTR(neomem_hist, 0644, neomem_hist_show,
 	       neomem_hist_store);
 
 
 
+static ssize_t neomem_hist_percentile_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", neomem_percentile);
+}
+
+static ssize_t neomem_hist_percentile_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_neomem_hist_percentile;
+
+    ret = kstrtou32(buf, 0, &new_neomem_hist_percentile);
+    if (ret)
+        return ret;
+
+    neomem_percentile = new_neomem_hist_percentile;
+    return count;
+}
+
+static struct kobj_attribute neomem_hist_percentile_attr =
+    __ATTR(neomem_hist_percentile, 0644, neomem_hist_percentile_show,
+           neomem_hist_percentile_store);
+
+
+static ssize_t neomem_error_bound_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", neomem_error_bound);
+}
+
+static struct kobj_attribute neomem_error_bound_attr =
+    __ATTR(neomem_error_bound, 0644, neomem_error_bound_show,
+           NULL);
 
 
 static struct attribute *neomem_attrs[] = {
@@ -511,6 +595,9 @@ static struct attribute *neomem_attrs[] = {
     &neomem_states_sample_period_attr.attr,
     
     &neomem_hist_attr.attr,
+    &neomem_hist_percentile_attr.attr,
+    &neomem_hist_scan_period_attr.attr,
+    &neomem_error_bound_attr.attr,
 	NULL,
 };
 
