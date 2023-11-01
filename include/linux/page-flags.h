@@ -139,6 +139,9 @@ enum pageflags {
 #ifdef CONFIG_KASAN_HW_TAGS
 	PG_skip_kasan_poison,
 #endif
+#ifdef CONFIG_NUMA_BALANCING
+	PG_demoted,
+#endif
 	__NR_PAGEFLAGS,
 
 	PG_readahead = PG_reclaim,
@@ -592,6 +595,13 @@ TESTPAGEFLAG(Young, young, PF_ANY)
 SETPAGEFLAG(Young, young, PF_ANY)
 TESTCLEARFLAG(Young, young, PF_ANY)
 PAGEFLAG(Idle, idle, PF_ANY)
+#endif
+
+#if defined(CONFIG_NUMA_BALANCING) && defined(CONFIG_64BIT)
+TESTPAGEFLAG(Demoted, demoted, PF_NO_TAIL)
+SETPAGEFLAG(Demoted, demoted, PF_NO_TAIL)
+TESTCLEARFLAG(Demoted, demoted, PF_NO_TAIL)
+CLEARPAGEFLAG(Demoted, demoted, PF_NO_TAIL)
 #endif
 
 #ifdef CONFIG_KASAN_HW_TAGS

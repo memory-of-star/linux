@@ -1283,6 +1283,12 @@ static int migrate_folio_move(free_page_t put_new_page, unsigned long private,
 	if (rc)
 		goto out;
 
+	/* Here we need to set the demote bit if the new page's migration reason is being demoted, the hugepage situation (in function unmap_and_move_huge_page)
+	   is not considered for now. */
+	if (reason == MR_DEMOTION && !folio_test_ksm(src))
+		folio_set_demoted(dst);
+
+
 	if (unlikely(!is_lru))
 		goto out_unlock_both;
 

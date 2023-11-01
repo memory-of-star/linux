@@ -118,6 +118,11 @@ static int hotpage_add(u64 paddr)
     else{
         count_vm_event(NEOMEM_ADD_HOT_PAGE);
 
+        if (folio_test_demoted(folio)){
+            count_vm_event(NEOMEM_HOT_AFTER_DEMOTED);
+            folio_clear_demoted(folio);
+        }
+
         spin_lock(&hotpage_list_lock);
         list_add(&folio->lru, &hotpage_list);
         spin_unlock(&hotpage_list_lock);

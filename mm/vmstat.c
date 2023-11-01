@@ -1439,7 +1439,8 @@ const char * const vmstat_text[] = {
 	"neomem_folio_unevictable",
 	"neomem_add_hot_page",
 	"neomem_migrate_pages_remained",
-	"neomem_reset_neoprof"
+	"neomem_reset_neoprof",
+	"neomem_hot_after_demoted"
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA || CONFIG_MEMCG */
