@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/memory-tiers.h>
+#include <linux/mm.h>
 
 #include "modules-common.h"
 
@@ -362,6 +363,9 @@ static int damon_reclaim_after_aggregation(struct damon_ctx *c)
 	printk("%lld\n", bitmap);
 
 	printk("%lld pages is migrated!\n", migrated_pages_cnt);
+
+	count_vm_events(ABIT_PGPROMOTED, migrated_pages_cnt);
+
 	migrated_pages_cnt = 0;
 
 #endif
