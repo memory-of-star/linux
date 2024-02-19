@@ -1442,7 +1442,7 @@ const char * const vmstat_text[] = {
 	"neomem_reset_neoprof",
 	"neomem_hot_after_demoted",
 	"abit_pgpromoted",
-	"neomem_hot_page_candidate",
+	"neomem_hot_page_candidate"
 
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
