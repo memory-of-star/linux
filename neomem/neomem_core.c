@@ -15,6 +15,8 @@
 
 // #define DEBUG
 
+#define PAGES_PER_MB (256)
+
 
 static DECLARE_WAIT_QUEUE_HEAD(kneomemd_scanning_wait);
 LIST_HEAD(hotpage_list);
@@ -39,6 +41,21 @@ static u32 *neomem_hist;                               // store the information
 static u32 neomem_hist_nr_bins = 64;                   // number of bins in the histogram
 static u32 neomem_error_bound = 0;                     // error bound for the estimated hotness
 static u32 neomem_percentile = 50;                     // the p-percentile value for error bound estimation
+
+// neomem_quota, showing the limitation of page migration in a period
+static u32 neomem_quota_migrate_page_size_MB = 256;              // limit the migration size in a period
+
+// sync update
+bool neomem_update_state = false;
+
+static u32 hist_bin[64] = {0,     1,     2,     3,     4,     5,     6,     7,
+                           8,    10,    12,    14,    16,     18,    20,    22,
+                           24,   28,    32,    36,    40,     44,    48,    52,
+                           56,   64,    72,    80,    88,     96,   104,   112,
+                           120,  136,   152,   168,   184,    200,   216,   232,
+                           248,  280,   312,   344,   376,    408,   440,   472,
+                           504,  568,   632,   696,   760,    824,   888,   952,
+                           1016, 1144,  1272,  1400,  1528,   1656,  1784,  1912};
 
 static void kneomem_usleep(unsigned long usecs)
 {
@@ -141,6 +158,7 @@ static int get_hotpages_from_neoprof(void)
 {
     u32 nr_hotpages = get_nr_hotpages();
 
+    count_vm_events(NEOMEM_HOT_PAGE_CANDIDATE, nr_hotpages);
     for(int i = 0; i < nr_hotpages; i++) {
         u64 paddr = get_hotpage();
         hotpage_add(paddr);
@@ -219,6 +237,14 @@ static int kneomemd_migration(void *data){
 }
 
 
+static void neomem_update_state_all(void){
+    set_hotness_threshold(neomem_scanning_hotness_threshold);
+    set_access_sample_interval(neomem_scanning_sample_period);
+    set_state_sample_interval(neomem_states_sample_period);
+    neomem_update_state = false;
+}
+
+
 /*
  * The monitoring daemon that runs as a kernel thread
  */
@@ -230,6 +256,10 @@ static int kneomemd_scanning(void * data)
     while (!kthread_should_stop()) {
         
         kneomem_usleep(neomem_scanning_interval_us);
+
+        if (neomem_update_state){
+            neomem_update_state_all();
+        }
 
         if(!neomem_scanning_enabled){
             wait_event_interruptible(kneomemd_scanning_wait, neomem_scanning_enabled);
@@ -246,6 +276,7 @@ static int kneomemd_scanning(void * data)
         // kneomemd_migration(ctx);
         if(scan_cnt % neomem_hist_scan_period == 0){
             get_hist_from_neoprof();
+            kneomem_usleep(5000);
         }
 
         neomem_get_states();
@@ -406,7 +437,7 @@ static ssize_t neomem_scanning_hotness_threshold_store(struct kobject *kobj,
         return ret;
 
     neomem_scanning_hotness_threshold = new_neomem_scanning_hotness_threshold;
-    set_hotness_threshold(neomem_scanning_hotness_threshold);
+    neomem_update_state = true;
 
     return count;
 }
@@ -438,7 +469,7 @@ static ssize_t neomem_scanning_sample_period_store(struct kobject *kobj,
         return ret;
 
     neomem_scanning_sample_period = new_neomem_scanning_sample_period;
-    set_access_sample_interval(neomem_scanning_sample_period);
+    neomem_update_state = true;
 
     return count;
 }
@@ -486,7 +517,7 @@ static ssize_t neomem_states_sample_period_store(struct kobject *kobj,
         return ret;
 
     neomem_states_sample_period = new_neomem_states_sample_period;
-    set_state_sample_interval(neomem_states_sample_period);
+    neomem_update_state = true;
     return count;
 }
 
@@ -533,7 +564,7 @@ static ssize_t neomem_hist_show(struct kobject *kobj,
     
     for (int i = 0; i < HIST_SIZE; i++)
     {
-        sprintf(msg, "%shist %d: %d\n", msg, i, neomem_hist[i]);
+        sprintf(msg, "%shist %d: %d\n", msg, hist_bin[i], neomem_hist[i]);
     }
     ret = sysfs_emit(buf, "%s", msg);
     return ret;
@@ -589,6 +620,36 @@ static struct kobj_attribute neomem_error_bound_attr =
            NULL);
 
 
+/* 
+ *  neomem_quota_migrate_page_size_MB
+ */
+
+static ssize_t neomem_quota_migrate_page_size_MB_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    return sysfs_emit(buf, "%u\n", neomem_quota_migrate_page_size_MB);
+}
+
+static ssize_t neomem_quota_migrate_page_size_MB_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    ssize_t ret;
+    u32 new_neomem_quota_migrate_page_size_MB;
+
+    ret = kstrtou32(buf, 0, &new_neomem_quota_migrate_page_size_MB);
+    if (ret)
+        return ret;
+
+    neomem_quota_migrate_page_size_MB = new_neomem_quota_migrate_page_size_MB;
+    return count;
+}
+
+static struct kobj_attribute neomem_quota_migrate_page_size_MB_attr =
+    __ATTR(neomem_quota_migrate_page_size_MB, 0644, neomem_quota_migrate_page_size_MB_show,
+           neomem_quota_migrate_page_size_MB_store);
+
+
 static struct attribute *neomem_attrs[] = {
 	&neomem_scanning_enabled_attr.attr,
     &neomem_scanning_interval_us_attr.attr,
@@ -603,6 +664,8 @@ static struct attribute *neomem_attrs[] = {
     &neomem_hist_percentile_attr.attr,
     &neomem_hist_scan_period_attr.attr,
     &neomem_error_bound_attr.attr,
+
+    &neomem_quota_migrate_page_size_MB_attr.attr,
 	NULL,
 };
 

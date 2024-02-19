@@ -1441,7 +1441,9 @@ const char * const vmstat_text[] = {
 	"neomem_migrate_pages_remained",
 	"neomem_reset_neoprof",
 	"neomem_hot_after_demoted",
-	"abit_pgpromoted"
+	"abit_pgpromoted",
+	"neomem_hot_page_candidate",
+
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA || CONFIG_MEMCG */
