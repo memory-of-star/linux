@@ -929,6 +929,7 @@ static int cxl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 static const struct pci_device_id cxl_mem_pci_tbl[] = {
 	/* PCI class code for CXL.mem Type-3 Devices */
 	{ PCI_DEVICE_CLASS((PCI_CLASS_MEMORY_CXL << 8 | CXL_MEMORY_PROGIF), ~0)},
+	{ PCI_DEVICE_CLASS((PCI_CLASS_CXL_TYPE2 << 8 | CXL_TYPE2_PROGIF), ~0)},
 	{ /* terminate list */ },
 };
 MODULE_DEVICE_TABLE(pci, cxl_mem_pci_tbl);

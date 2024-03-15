@@ -6,6 +6,7 @@
 #include "cxl.h"
 
 #define CXL_MEMORY_PROGIF	0x10
+#define CXL_TYPE2_PROGIF    0x00
 
 /*
  * See section 8.1 Configuration Space Registers in the CXL 2.0
