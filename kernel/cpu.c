@@ -1731,6 +1731,8 @@ static int cpu_up(unsigned int cpu, enum cpuhp_state target)
 		return -EINVAL;
 	}
 
+	printk("from cpu_up enter try_online_node, nid: %d, cpu: %d\n", cpu_to_node(cpu), cpu);
+
 	err = try_online_node(cpu_to_node(cpu));
 	if (err)
 		return err;

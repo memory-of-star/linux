@@ -1226,6 +1226,8 @@ static pg_data_t __ref *hotadd_init_pgdat(int nid)
 {
 	struct pglist_data *pgdat;
 
+	printk("enter hotadd_init_pgdat for nid: %d\n", nid);
+
 	/*
 	 * NODE_DATA is preallocated (free_area_init) but its internal
 	 * state is not allocated completely. Add missing pieces.
@@ -1262,6 +1264,8 @@ static int __try_online_node(int nid, bool set_node_online)
 	pg_data_t *pgdat;
 	int ret = 1;
 
+	printk("enter __try_online_node, nid: %d, set_node_online: %d, node_already_online: %d\n", nid, set_node_online, node_online(nid));
+
 	if (node_online(nid))
 		return 0;
 
@@ -1287,6 +1291,8 @@ out:
 int try_online_node(int nid)
 {
 	int ret;
+
+	printk("from try_online_node enter __try_online_node, nid: %d, set_node_online: %d\n", nid, true);
 
 	mem_hotplug_begin();
 	ret =  __try_online_node(nid, true);
@@ -1428,6 +1434,8 @@ int __ref add_memory_resource(int nid, struct resource *res, mhp_t mhp_flags)
 			goto error_mem_hotplug_end;
 	}
 
+	printk("from add_memory_resource enter __try_online_node, nid: %d, set_node_online: %d\n", nid, false);
+
 	ret = __try_online_node(nid, false);
 	if (ret < 0)
 		goto error;
@@ -1516,6 +1524,8 @@ int __ref __add_memory(int nid, u64 start, u64 size, mhp_t mhp_flags)
 	if (IS_ERR(res))
 		return PTR_ERR(res);
 
+	printk("from __add_memory enter add_memory_resource, nid: %d, start: %lld, size: %lld, mhp_flags: %d\n", nid, start, size, mhp_flags);
+
 	ret = add_memory_resource(nid, res, mhp_flags);
 	if (ret < 0)
 		release_memory_resource(res);
@@ -1573,6 +1583,8 @@ int add_memory_driver_managed(int nid, u64 start, u64 size,
 		rc = PTR_ERR(res);
 		goto out_unlock;
 	}
+
+	printk("from add_memory_driver_managed enter add_memory_resource, nid: %d, start: %lld, size: %lld, resource_name: %s, mhp_flags: %d\n", nid, start, size, resource_name, mhp_flags);
 
 	rc = add_memory_resource(nid, res, mhp_flags);
 	if (rc < 0)

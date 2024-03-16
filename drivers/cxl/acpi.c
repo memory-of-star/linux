@@ -213,6 +213,8 @@ static int cxl_parse_cfmws(union acpi_subtable_headers *header, void *arg,
 
 	cfmws = (struct acpi_cedt_cfmws *) header;
 
+	printk("enter cxl_parse_cfmws\n");
+
 	rc = cxl_acpi_cfmws_verify(dev, cfmws);
 	if (rc) {
 		dev_err(dev, "CFMWS range %#llx-%#llx not registered\n",
@@ -255,6 +257,8 @@ static int cxl_parse_cfmws(union acpi_subtable_headers *header, void *arg,
 	cxlrd = cxl_root_decoder_alloc(root_port, ways, cxl_calc_hb);
 	if (IS_ERR(cxlrd))
 		return 0;
+
+	printk("res: start: %lld, end: %lld\n", res->start, res->end);
 
 	cxld = &cxlrd->cxlsd.cxld;
 	cxld->flags = cfmws_to_decoder_flags(cfmws->restrictions);

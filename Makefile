@@ -2,7 +2,7 @@
 VERSION = 6
 PATCHLEVEL = 6
 SUBLEVEL = 0
-EXTRAVERSION =
+EXTRAVERSION = -test_split_numa
 NAME = Hurr durr I'ma ninja sloth
 
 # *DOCUMENTATION*
@@ -556,7 +556,7 @@ LINUXINCLUDE    := \
 
 KBUILD_AFLAGS   := -D__ASSEMBLY__ -fno-PIE
 
-KBUILD_CFLAGS :=
+KBUILD_CFLAGS := -Wno-error
 KBUILD_CFLAGS += -std=gnu11
 KBUILD_CFLAGS += -fshort-wchar
 KBUILD_CFLAGS += -funsigned-char

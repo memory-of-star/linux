@@ -113,7 +113,7 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 			continue;
 
 		/* Region is permanently reserved if hotremove fails. */
-		res = request_mem_region(range.start, range_len(&range), data->res_name);
+		res = request_mem_region(range.start+0x8000000, range_len(&range)-0x8000000, data->res_name);
 		if (!res) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx could not reserve region\n",
 					i, range.start, range.end);
@@ -140,8 +140,11 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 		 * Ensure that future kexec'd kernels will not treat
 		 * this as RAM automatically.
 		 */
-		rc = add_memory_driver_managed(data->mgid, range.start,
-				range_len(&range), kmem_name, MHP_NID_IS_MGID);
+
+		printk("from dev_dax_kmem_probe enter add_memory_driver_managed");
+
+		rc = add_memory_driver_managed(data->mgid, range.start+0x8000000,
+				range_len(&range)-0x8000000, kmem_name, MHP_NID_IS_MGID);
 
 		if (rc) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx memory add failed\n",
@@ -245,6 +248,8 @@ static struct dax_device_driver device_dax_kmem_driver = {
 static int __init dax_kmem_init(void)
 {
 	int rc;
+
+	printk("enter dax_kmem_init");
 
 	/* Resource name is permanently allocated if any hotremove fails. */
 	kmem_name = kstrdup_const("System RAM (kmem)", GFP_KERNEL);

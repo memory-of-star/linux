@@ -312,6 +312,9 @@ static int __init acpi_parse_cfmws(union acpi_subtable_headers *header,
 
 	/* Skip if the SRAT already described the NUMA details for this HPA */
 	node = phys_to_target_node(start);
+
+	printk("enter acpi_parse_cfmws, node: %d, start: %lld, end: %lld\n", node, start, end);
+
 	if (node != NUMA_NO_NODE)
 		return 0;
 
