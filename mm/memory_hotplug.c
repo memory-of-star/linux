@@ -255,11 +255,15 @@ static struct resource *register_memory_resource(u64 start, u64 size,
 	struct resource *res;
 	unsigned long flags =  IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY;
 
+	printk("enter register_memory_resource, start: %lld, size: %lld, resource_name: %s\n", start, size, resource_name);
+
 	if (strcmp(resource_name, "System RAM"))
 		flags |= IORESOURCE_SYSRAM_DRIVER_MANAGED;
 
 	if (!mhp_range_allowed(start, size, true))
 		return ERR_PTR(-E2BIG);
+
+	printk("register_memory_resource after E2BIG\n");
 
 	/*
 	 * Make sure value parsed from 'mem=' only restricts memory adding
@@ -269,6 +273,8 @@ static struct resource *register_memory_resource(u64 start, u64 size,
 	 */
 	if (start + size > max_mem_size && system_state < SYSTEM_RUNNING)
 		return ERR_PTR(-E2BIG);
+
+	printk("register_memory_resource after E2BIG 2\n");
 
 	/*
 	 * Request ownership of the new memory range.  This might be
@@ -281,6 +287,7 @@ static struct resource *register_memory_resource(u64 start, u64 size,
 	if (!res) {
 		pr_debug("Unable to reserve System RAM region: %016llx->%016llx\n",
 				start, start + size);
+		printk("Unable to reserve System RAM region: %016llx->%016llx\n", start, start + size);
 		return ERR_PTR(-EEXIST);
 	}
 	return res;
@@ -1575,6 +1582,8 @@ int add_memory_driver_managed(int nid, u64 start, u64 size,
 	    strstr(resource_name, "System RAM (") != resource_name ||
 	    resource_name[strlen(resource_name) - 1] != ')')
 		return -EINVAL;
+
+	printk("add_memory_driver_managed, after EINVAL\n");
 
 	lock_device_hotplug();
 

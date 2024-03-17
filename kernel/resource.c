@@ -174,6 +174,8 @@ static struct resource * __request_resource(struct resource *root, struct resour
 	resource_size_t end = new->end;
 	struct resource *tmp, **p;
 
+	// printk("enter __request_resource, start: %lld, end: %lld, root->start: %lld, root->end: %lld\n", start, end, root->start, root->end);
+
 	if (end < start)
 		return root;
 	if (start < root->start)
@@ -183,6 +185,7 @@ static struct resource * __request_resource(struct resource *root, struct resour
 	p = &root->child;
 	for (;;) {
 		tmp = *p;
+		// printk("__request_resource: tmp->start: %lld, tmp->end: %lld\n", tmp->start, tmp->end);
 		if (!tmp || tmp->start > end) {
 			new->sibling = tmp;
 			*p = new;
@@ -1161,6 +1164,8 @@ static int __request_region_locked(struct resource *res, struct resource *parent
 {
 	DECLARE_WAITQUEUE(wait, current);
 
+	// printk("enter __request_region_locked");
+
 	res->name = name;
 	res->start = start;
 	res->end = start + n - 1;
@@ -1200,6 +1205,7 @@ static int __request_region_locked(struct resource *res, struct resource *parent
 			continue;
 		}
 		/* Uhhuh, that didn't work out.. */
+		// printk("__request_region_locked E_BUSY");
 		return -EBUSY;
 	}
 
@@ -1221,8 +1227,12 @@ struct resource *__request_region(struct resource *parent,
 	struct resource *res = alloc_resource(GFP_KERNEL);
 	int ret;
 
+	// printk("enter __request_region\n");
+
 	if (!res)
 		return NULL;
+
+	// printk("enter __request_region, point 1\n");
 
 	write_lock(&resource_lock);
 	ret = __request_region_locked(res, parent, start, n, name, flags);
@@ -1232,6 +1242,8 @@ struct resource *__request_region(struct resource *parent,
 		free_resource(res);
 		return NULL;
 	}
+
+	// printk("enter __request_region, point 2\n");
 
 	if (parent == &iomem_resource)
 		revoke_iomem(res);
