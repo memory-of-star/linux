@@ -19,4 +19,33 @@ u32 get_remap_mode(void);
 void enable_remap_mode(void);
 void disable_remap_mode(void);
 
+u64 get_cache_hit_num(int);
+u64 get_cache_miss_num(int);
+
+u32 get_migrate_address_fast(void);
+void set_migrate_address_fast(u32);
+
+u32 get_migrate_address_slow(void);
+void set_migrate_address_slow(u32);
+
+void start_migrate(void);
+
+u32 get_sketch_threshold(void);
+void set_sketch_threshold(u32);
+u32 get_sketch_reset_period(void);
+void set_sketch_reset_period(u32);
+u32 get_migrate_page_cnt(void);
+
+u32 get_migrate_page_limit(void);
+void set_migrate_page_limit(u32);
+u32 get_migrate_page_limit_period(void);
+void set_migrate_page_limit_period(u32);
+u32 get_migrate_page_cnt_executed(void);
+void set_migrate_page_cnt_executed(u32);
+
+u32 get_cold_scan_period(void);
+void set_cold_scan_period(u32);
+
+u32 pfn_to_device_addr(u32);
+
 #endif 
