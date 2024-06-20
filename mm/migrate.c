@@ -1704,6 +1704,7 @@ static int migrate_pages_batch(struct list_head *from, new_page_t get_new_page,
 				if (is_large) {
 					nr_large_failed++;
 					stats->nr_thp_failed += is_thp;
+					count_vm_event(THP_MIGRATE_FOLIO_UNMAP_ENOMEM);
 					/* Large folio NUMA faulting doesn't split to retry. */
 					if (!nosplit) {
 						int ret = try_split_folio(folio, split_folios);
@@ -1738,6 +1739,7 @@ static int migrate_pages_batch(struct list_head *from, new_page_t get_new_page,
 					goto move;
 			case -EAGAIN:
 				if (is_large) {
+					count_vm_event(THP_MIGRATE_FOLIO_UNMAP_EAGAIN);
 					large_retry++;
 					thp_retry += is_thp;
 				} else {
@@ -1750,6 +1752,7 @@ static int migrate_pages_batch(struct list_head *from, new_page_t get_new_page,
 				stats->nr_thp_succeeded += is_thp;
 				break;
 			case MIGRATEPAGE_UNMAP:
+				count_vm_event(THP_MIGRATE_FOLIO_UNMAP_MIGRATEPAGE_UNMAP);
 				list_move_tail(&folio->lru, &unmap_folios);
 				list_add_tail(&dst->lru, &dst_folios);
 				break;
@@ -1761,6 +1764,7 @@ static int migrate_pages_batch(struct list_head *from, new_page_t get_new_page,
 				 * retried in the next outer loop.
 				 */
 				if (is_large) {
+					count_vm_event(THP_MIGRATE_FOLIO_UNMAP_PERMANENT_FAILURE);
 					nr_large_failed++;
 					stats->nr_thp_failed += is_thp;
 				} else {
@@ -1808,6 +1812,7 @@ move:
 			switch(rc) {
 			case -EAGAIN:
 				if (is_large) {
+					count_vm_event(THP_MIGRATE_FOLIO_MOVE_EAGAIN);
 					large_retry++;
 					thp_retry += is_thp;
 				} else {
@@ -1821,6 +1826,7 @@ move:
 				break;
 			default:
 				if (is_large) {
+					count_vm_event(THP_MIGRATE_FOLIO_MOVE_PERMANENT_FAILURE);
 					nr_large_failed++;
 					stats->nr_thp_failed += is_thp;
 				} else {

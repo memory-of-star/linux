@@ -1442,7 +1442,13 @@ const char * const vmstat_text[] = {
 	"neomem_reset_neoprof",
 	"neomem_hot_after_demoted",
 	"abit_pgpromoted",
-	"neomem_hot_page_candidate"
+	"neomem_hot_page_candidate",
+	"thp_migrate_folio_unmap_enomem",
+	"thp_migrate_folio_unmap_eagain",
+	"thp_migrate_folio_unmap_migratepage_unmap",
+	"thp_migrate_folio_unmap_permanent_failure",
+	"thp_migrate_folio_move_eagain",
+	"thp_migrate_folio_move_permanent_failure"
 
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
