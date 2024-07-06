@@ -1421,7 +1421,8 @@ void mark_rodata_ro(void)
  * hotremoved. It must be power of two and must be equal or larger than
  * MIN_MEMORY_BLOCK_SIZE.
  */
-#define MAX_BLOCK_SIZE (2UL << 30)
+// #define MAX_BLOCK_SIZE (2UL << 30)
+#define MAX_BLOCK_SIZE (128UL << 20) // 128MB
 
 /* Amount of ram needed to start using large blocks */
 #define MEM_SIZE_FOR_LARGE_BLOCK (64UL << 30)

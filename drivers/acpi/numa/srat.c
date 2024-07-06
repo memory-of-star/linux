@@ -215,21 +215,22 @@ int __init srat_disabled(void)
 void __init acpi_numa_slit_init(struct acpi_table_slit *slit)
 {
 	int i, j;
+	int __distance[3][3] = {{10, 14, 18}, {14, 10, 14}, {18, 14, 10}};
 
-	for (i = 0; i < slit->locality_count; i++) {
+	for (i = 0; i < 3; i++) {
 		const int from_node = pxm_to_node(i);
 
 		if (from_node == NUMA_NO_NODE)
 			continue;
 
-		for (j = 0; j < slit->locality_count; j++) {
+		for (j = 0; j < 3; j++) {
 			const int to_node = pxm_to_node(j);
 
 			if (to_node == NUMA_NO_NODE)
 				continue;
 
 			numa_set_distance(from_node, to_node,
-				slit->entry[slit->locality_count * i + j]);
+				__distance[i][j]);
 		}
 	}
 }
@@ -264,32 +265,105 @@ acpi_numa_memory_affinity_init(struct acpi_srat_mem_affinity *ma)
 		pxm &= 0xff;
 
 	node = acpi_map_pxm_to_node(pxm);
-	if (node == NUMA_NO_NODE) {
-		pr_err("SRAT: Too many proximity domains.\n");
-		goto out_err_bad_srat;
+	if (node == 0){
+		if (node == NUMA_NO_NODE) {
+			pr_err("SRAT: Too many proximity domains.\n");
+			goto out_err_bad_srat;
+		}
+
+		if (numa_add_memblk(node, start, end) < 0) {
+			pr_err("SRAT: Failed to add memblk to node %u [mem %#010Lx-%#010Lx]\n",
+				node, (unsigned long long) start,
+				(unsigned long long) end - 1);
+			goto out_err_bad_srat;
+		}
+
+		node_set(node, numa_nodes_parsed);
+
+		pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
+			node, pxm,
+			(unsigned long long) start, (unsigned long long) end - 1,
+			hotpluggable ? " hotplug" : "",
+			ma->flags & ACPI_SRAT_MEM_NON_VOLATILE ? " non-volatile" : "");
+
+		/* Mark hotplug range in memblock. */
+		if (hotpluggable && memblock_mark_hotplug(start, ma->length))
+			pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
+				(unsigned long long)start, (unsigned long long)end - 1);
+
+		max_possible_pfn = max(max_possible_pfn, PFN_UP(end - 1));
 	}
+	else{
+		if (numa_add_memblk(node, start+0x8000000, start+0x48000000) < 0) {
+			pr_err("SRAT: Failed to add memblk to node %u [mem %#010Lx-%#010Lx]\n",
+				node, (unsigned long long) start,
+				(unsigned long long) end - 1);
+			goto out_err_bad_srat;
+		}
+		node_set(node, numa_nodes_parsed);
 
-	if (numa_add_memblk(node, start, end) < 0) {
-		pr_err("SRAT: Failed to add memblk to node %u [mem %#010Lx-%#010Lx]\n",
-		       node, (unsigned long long) start,
-		       (unsigned long long) end - 1);
-		goto out_err_bad_srat;
+		pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
+			node, pxm,
+			(unsigned long long) start+0x8000000, (unsigned long long) start+0x48000000 - 1,
+			hotpluggable ? " hotplug" : "",
+			ma->flags & ACPI_SRAT_MEM_NON_VOLATILE ? " non-volatile" : "");
+
+		/* Mark hotplug range in memblock. */
+		if (hotpluggable && memblock_mark_hotplug(start+0x8000000, 0x40000000))
+			pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
+				(unsigned long long)start+0x8000000, (unsigned long long)start+0x48000000 - 1);
+
+
+
+		pxm++;
+		node = acpi_map_pxm_to_node(pxm);
+		if (numa_add_memblk(node, start+0x48000000, end) < 0) {
+			pr_err("SRAT: Failed to add memblk to node %u [mem %#010Lx-%#010Lx]\n",
+				node, (unsigned long long) start+0x48000000,
+				(unsigned long long) end - 1);
+			goto out_err_bad_srat;
+		}
+		node_set(node, numa_nodes_parsed);
+
+		pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
+			node, pxm,
+			(unsigned long long) start+0x48000000, (unsigned long long) end - 1,
+			hotpluggable ? " hotplug" : "",
+			ma->flags & ACPI_SRAT_MEM_NON_VOLATILE ? " non-volatile" : "");
+
+		/* Mark hotplug range in memblock. */
+		if (hotpluggable && memblock_mark_hotplug(start+0x48000000, 0x3b8000000))
+			pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
+				(unsigned long long)start+0x48000000, (unsigned long long)end - 1);
+
+		max_possible_pfn = max(max_possible_pfn, PFN_UP(end - 1));
 	}
+	// if (node == NUMA_NO_NODE) {
+	// 	pr_err("SRAT: Too many proximity domains.\n");
+	// 	goto out_err_bad_srat;
+	// }
 
-	node_set(node, numa_nodes_parsed);
+	// if (numa_add_memblk(node, start, end) < 0) {
+	// 	pr_err("SRAT: Failed to add memblk to node %u [mem %#010Lx-%#010Lx]\n",
+	// 	       node, (unsigned long long) start,
+	// 	       (unsigned long long) end - 1);
+	// 	goto out_err_bad_srat;
+	// }
 
-	pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
-		node, pxm,
-		(unsigned long long) start, (unsigned long long) end - 1,
-		hotpluggable ? " hotplug" : "",
-		ma->flags & ACPI_SRAT_MEM_NON_VOLATILE ? " non-volatile" : "");
+	// node_set(node, numa_nodes_parsed);
 
-	/* Mark hotplug range in memblock. */
-	if (hotpluggable && memblock_mark_hotplug(start, ma->length))
-		pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
-			(unsigned long long)start, (unsigned long long)end - 1);
+	// pr_info("SRAT: Node %u PXM %u [mem %#010Lx-%#010Lx]%s%s\n",
+	// 	node, pxm,
+	// 	(unsigned long long) start, (unsigned long long) end - 1,
+	// 	hotpluggable ? " hotplug" : "",
+	// 	ma->flags & ACPI_SRAT_MEM_NON_VOLATILE ? " non-volatile" : "");
 
-	max_possible_pfn = max(max_possible_pfn, PFN_UP(end - 1));
+	// /* Mark hotplug range in memblock. */
+	// if (hotpluggable && memblock_mark_hotplug(start, ma->length))
+	// 	pr_warn("SRAT: Failed to mark hotplug range [mem %#010Lx-%#010Lx] in memblock\n",
+	// 		(unsigned long long)start, (unsigned long long)end - 1);
+
+	// max_possible_pfn = max(max_possible_pfn, PFN_UP(end - 1));
 
 	return 0;
 out_err_bad_srat:

@@ -99,24 +99,32 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 	if (!data->res_name)
 		goto err_res_name;
 
-	rc = memory_group_register_static(numa_node, total_len);
+	// rc = memory_group_register_static(numa_node, total_len);
+	rc = memory_group_register_static(numa_node, PFN_UP(0x48000000));
+	printk("numa_node in dev_dax_kmem_probe: %d\n", numa_node);
+
 	if (rc < 0)
 		goto err_reg_mgid;
 	data->mgid = rc;
 
+	int slow_rc = memory_group_register_static(2, PFN_UP(0x3b8000000));
+	printk("slow_rc in dev_dax_kmem_probe: %d\n", numa_node);
+
 	for (i = 0; i < dev_dax->nr_range; i++) {
 		struct resource *res;
 		struct range range;
+
+		struct resource *slow_res;
 
 		rc = dax_kmem_range(dev_dax, i, &range);
 		if (rc)
 			continue;
 
 		/* Region is permanently reserved if hotremove fails. */
-		res = request_mem_region(range.start, range_len(&range), data->res_name);
+		res = request_mem_region(range.start+0x8000000, 0x40000000, data->res_name);
 		if (!res) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx could not reserve region\n",
-					i, range.start, range.end);
+					i, range.start+0x8000000, range.start+0x48000000-1);
 			/*
 			 * Once some memory has been onlined we can't
 			 * assume that it can be un-onlined safely.
@@ -140,12 +148,14 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 		 * Ensure that future kexec'd kernels will not treat
 		 * this as RAM automatically.
 		 */
-		rc = add_memory_driver_managed(data->mgid, range.start,
-				range_len(&range), kmem_name, MHP_NID_IS_MGID);
+		printk("from dev_dax_kmem_probe enter add_memory_driver_managed");
+
+		rc = add_memory_driver_managed(data->mgid, range.start+0x8000000,
+				0x40000000, kmem_name, MHP_NID_IS_MGID);
 
 		if (rc) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx memory add failed\n",
-					i, range.start, range.end);
+					i, range.start+0x8000000, range.start+0x48000000-1);
 			remove_resource(res);
 			kfree(res);
 			data->res[i] = NULL;
@@ -154,6 +164,40 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 			goto err_request_mem;
 		}
 		mapped++;
+
+		slow_res = request_mem_region(range.start+0x48000000, 0x3b8000000, data->res_name);
+
+		if (!slow_res) {
+			dev_warn(dev, "mapping%d: %#llx-%#llx could not reserve region\n",
+					i, range.start+0x48000000, range.start+0x48000000+0x3b8000000-1);
+			/*
+			 * Once some memory has been onlined we can't
+			 * assume that it can be un-onlined safely.
+			 */
+			if (mapped)
+				continue;
+			rc = -EBUSY;
+			goto err_request_mem;
+		}
+
+		printk("from dev_dax_kmem_probe enter add_memory_driver_managed slow");
+
+		slow_res->flags = IORESOURCE_SYSTEM_RAM;
+
+		rc = add_memory_driver_managed(slow_rc, range.start+0x48000000,
+				0x3b8000000, kmem_name, MHP_NID_IS_MGID);
+		if (rc) {
+			dev_warn(dev, "mapping%d: %#llx-%#llx memory add failed\n",
+					i, range.start+0x48000000, range.start+0x48000000+0x3b8000000-1);
+			remove_resource(slow_res);
+			kfree(slow_res);
+			data->res[i] = NULL;
+			if (mapped)
+				continue;
+			goto err_request_mem;
+		}
+		mapped++;
+		
 	}
 
 	dev_set_drvdata(dev, data);

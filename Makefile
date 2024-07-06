@@ -2,7 +2,7 @@
 VERSION = 6
 PATCHLEVEL = 3
 SUBLEVEL = 0
-EXTRAVERSION = -neomem_damonabit_neopebs_merged_8G_16G_profile_v3
+EXTRAVERSION = -v6.3_heterobox_v2
 NAME = Hurr durr I'ma ninja sloth
 
 # *DOCUMENTATION*
@@ -738,7 +738,7 @@ endif
 
 ifeq ($(KBUILD_EXTMOD),)
 # Objects we will link into vmlinux / subdirs we need to visit
-core-y		:= neomem/ pebs/
+core-y		:= neomem/ pebs/ heterbox/
 drivers-y	:=
 libs-y		:= lib/
 endif # KBUILD_EXTMOD

@@ -243,4 +243,6 @@ source "drivers/hte/Kconfig"
 
 source "drivers/neoprof/Kconfig"
 
+source "drivers/heterbox_driver/Kconfig"
+
 endmenu

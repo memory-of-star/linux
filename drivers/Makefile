@@ -196,3 +196,4 @@ obj-$(CONFIG_HTE)		+= hte/
 obj-$(CONFIG_DRM_ACCEL)		+= accel/
 
 obj-$(CONFIG_NEOPROF)	+= neoprof/
+obj-$(CONFIG_HETERBOX_DRIVER) += heterbox_driver/
