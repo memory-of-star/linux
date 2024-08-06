@@ -370,7 +370,7 @@ static unsigned long damon_pa_migrate(struct damon_region *r,
 #endif
 
 	nr_remaining = migrate_pages(&folio_list, alloc_misplaced_dst_page,
-				     NULL, 0, MIGRATE_SYNC,
+				     NULL, 1, MIGRATE_SYNC,
 				     MR_NUMA_MISPLACED, &nr_succeeded);
 
 	if (nr_remaining) {

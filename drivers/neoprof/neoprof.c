@@ -5,9 +5,9 @@
 #define DDR_OFFSET 0x80000 // page addr offset defined by CXL IP
 #define CXL_MEM_BASE 0x2080000000 // CXL memory base addr
 
-#define HOTPAGE_NUM_REG 0x200
-#define HOTPAGE_REG 0x300
-#define THRESHOLD_SET_REG 0x300
+#define HOTPAGE_NUM_REG 0x2000
+#define HOTPAGE_REG 0x2100
+#define THRESHOLD_SET_REG 0x1100
 #define NR_HOTPAGE_REG 0x200
 #define RD_TEST_REG 0x100
 #define WR_TEST_REG 0x100
@@ -105,6 +105,7 @@ u32 get_nr_hotpages(void)
 u64 get_hotpage(void)
 {
     volatile u64 hp_addr = neoprof_read(HOTPAGE_REG); // [63:12] is the address of hot page
+    hp_addr = (hp_addr >> 5);
     if (hp_addr < DDR_OFFSET){
             
             // if (neomem_debug_enabled)

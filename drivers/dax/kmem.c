@@ -116,15 +116,17 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 
 		struct resource *slow_res;
 
+		uint64_t fast_region_size = 4*((uint64_t)(0x4000))*((uint64_t)(0x10000)); // 4GB
+
 		rc = dax_kmem_range(dev_dax, i, &range);
 		if (rc)
 			continue;
 
 		/* Region is permanently reserved if hotremove fails. */
-		res = request_mem_region(range.start+0x8000000, 0x40000000, data->res_name);
+		res = request_mem_region(range.start+0x8000000, fast_region_size, data->res_name);
 		if (!res) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx could not reserve region\n",
-					i, range.start+0x8000000, range.start+0x48000000-1);
+					i, range.start+0x8000000, range.start + fast_region_size + 0x8000000 -1);
 			/*
 			 * Once some memory has been onlined we can't
 			 * assume that it can be un-onlined safely.
@@ -151,7 +153,7 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 		printk("from dev_dax_kmem_probe enter add_memory_driver_managed");
 
 		rc = add_memory_driver_managed(data->mgid, range.start+0x8000000,
-				0x40000000, kmem_name, MHP_NID_IS_MGID);
+				fast_region_size, kmem_name, MHP_NID_IS_MGID);
 
 		if (rc) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx memory add failed\n",
@@ -165,7 +167,7 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 		}
 		mapped++;
 
-		slow_res = request_mem_region(range.start+0x48000000, 0x3b8000000, data->res_name);
+		slow_res = request_mem_region(range.start+fast_region_size+0x8000000, (0x400000000 - (fast_region_size+0x8000000)), data->res_name);
 
 		if (!slow_res) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx could not reserve region\n",
@@ -184,8 +186,8 @@ static int dev_dax_kmem_probe(struct dev_dax *dev_dax)
 
 		slow_res->flags = IORESOURCE_SYSTEM_RAM;
 
-		rc = add_memory_driver_managed(slow_rc, range.start+0x48000000,
-				0x3b8000000, kmem_name, MHP_NID_IS_MGID);
+		rc = add_memory_driver_managed(slow_rc, range.start+fast_region_size+0x8000000,
+				(0x400000000 - (fast_region_size+0x8000000)), kmem_name, MHP_NID_IS_MGID);
 		if (rc) {
 			dev_warn(dev, "mapping%d: %#llx-%#llx memory add failed\n",
 					i, range.start+0x48000000, range.start+0x48000000+0x3b8000000-1);

@@ -193,7 +193,7 @@ static int damon_reclaim_apply_parameters(void)
 	}
 	damon_set_schemes(ctx, &scheme, 1);
 
-	err = damon_set_region_numa_node1(target,
+	err = damon_set_region_numa_node2(target,
 					&monitor_region_start,
 					&monitor_region_end);
 	if (err)

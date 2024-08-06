@@ -454,6 +454,52 @@ static struct kobj_attribute cold_scan_period_attr =
            cold_scan_period_store);
 
 
+/* 
+ *  fastmem_access_cnt
+ */
+
+static ssize_t fastmem_access_cnt_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    u64 fastmem_access_cnt = get_fastmem_access_cnt();
+    return sysfs_emit(buf, "%lld\n", fastmem_access_cnt);
+}
+
+static ssize_t fastmem_access_cnt_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    return count;
+}
+
+static struct kobj_attribute fastmem_access_cnt_attr =
+    __ATTR(fastmem_access_cnt, 0644, fastmem_access_cnt_show,
+           fastmem_access_cnt_store);
+
+
+/* 
+ *  slowmem_access_cnt
+ */
+
+static ssize_t slowmem_access_cnt_show(struct kobject *kobj,
+                      struct kobj_attribute *attr, char *buf)
+{
+    u64 slowmem_access_cnt = get_slowmem_access_cnt();
+    return sysfs_emit(buf, "%lld\n", slowmem_access_cnt);
+}
+
+static ssize_t slowmem_access_cnt_store(struct kobject *kobj,
+                       struct kobj_attribute *attr,
+                       const char *buf, size_t count)
+{
+    return count;
+}
+
+static struct kobj_attribute slowmem_access_cnt_attr =
+    __ATTR(slowmem_access_cnt, 0644, slowmem_access_cnt_show,
+           slowmem_access_cnt_store);
+
+
 /*
  * heterbox_attrs
  */
@@ -473,6 +519,8 @@ static struct attribute *heterbox_attrs[] = {
     &migrate_page_limit_period_attr.attr,
     &migrate_page_cnt_executed_attr.attr,
     &cold_scan_period_attr.attr,
+    &fastmem_access_cnt_attr.attr,
+    &slowmem_access_cnt_attr.attr,
 	NULL,
 };
 

@@ -2,7 +2,7 @@
 VERSION = 6
 PATCHLEVEL = 3
 SUBLEVEL = 0
-EXTRAVERSION = -v6.3_heterobox_v2
+EXTRAVERSION = -v6.3_heterobox_4G_fast
 NAME = Hurr durr I'ma ninja sloth
 
 # *DOCUMENTATION*

@@ -161,7 +161,9 @@ static int get_hotpages_from_neoprof(void)
     count_vm_events(NEOMEM_HOT_PAGE_CANDIDATE, nr_hotpages);
     for(int i = 0; i < nr_hotpages; i++) {
         u64 paddr = get_hotpage();
+        // paddr = (paddr >> 5);
         hotpage_add(paddr);
+        // printk("%d in %d hotpages, paddr: 0x%llx\n", i, nr_hotpages, paddr);
     }
 
     return 0;   
@@ -214,7 +216,7 @@ static int kneomemd_migration(void *data){
     spin_unlock(&hotpage_list_lock);
 
     nr_remaining = _neomem_migrate_pages(&hotpage_list_local, alloc_misplaced_dst_page,
-                     NULL, 0, MIGRATE_ASYNC,
+                     NULL, 1, MIGRATE_ASYNC,
                      MR_NUMA_MISPLACED, &nr_succeeded);
 
 
@@ -239,8 +241,8 @@ static int kneomemd_migration(void *data){
 
 static void neomem_update_state_all(void){
     set_hotness_threshold(neomem_scanning_hotness_threshold);
-    set_access_sample_interval(neomem_scanning_sample_period);
-    set_state_sample_interval(neomem_states_sample_period);
+    // set_access_sample_interval(neomem_scanning_sample_period);
+    // set_state_sample_interval(neomem_states_sample_period);
     neomem_update_state = false;
 }
 
@@ -274,20 +276,20 @@ static int kneomemd_scanning(void * data)
 
         kthread_run(kneomemd_migration, ctx, "kneomemd.migration");
         // kneomemd_migration(ctx);
-        if(scan_cnt % neomem_hist_scan_period == 0){
-            get_hist_from_neoprof();
-            kneomem_usleep(5000);
-        }
+        // if(scan_cnt % neomem_hist_scan_period == 0){
+            // get_hist_from_neoprof();
+            // kneomem_usleep(5000);
+        // }
 
-        neomem_get_states();
+        // neomem_get_states();
 
-        if(scan_cnt % neomem_scanning_reset_period == 0){
+        // if(scan_cnt % neomem_scanning_reset_period == 0){
 
-            count_vm_event(NEOMEM_RESET_NEOPROF);
+        //     count_vm_event(NEOMEM_RESET_NEOPROF);
 
-            // clear the states in neoprof
-            reset_neoprof();
-        }
+        //     // clear the states in neoprof
+        //     reset_neoprof();
+        // }
         scan_cnt++;
     }
     printk("kneomemd_scanning exit\n");

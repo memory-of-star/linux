@@ -34,6 +34,11 @@
 
 #define COLD_SCAN_PERIOD_REG 0x1d00
 
+#define READ_FASTMEM_CNT_LOW_REG 0x2200
+#define READ_FASTMEM_CNT_HIGH_REG 0x2300
+#define READ_SLOWMEM_CNT_LOW_REG 0x2400
+#define READ_SLOWMEM_CNT_HIGH_REG 0x2500
+
 
 static void __iomem *mmio_base;
 static unsigned long long num_error_cxl_pages = 0;
@@ -254,6 +259,30 @@ u32 get_migrate_page_cnt_executed(){
 u32 get_cold_scan_period(){
     u32 ret;
     ret = heterbox_read(COLD_SCAN_PERIOD_REG);
+    return ret;
+}
+
+u64 get_fastmem_access_cnt(){
+    u64 ret;
+    u32 ret_low, ret_high;
+
+    ret_low = heterbox_read(READ_FASTMEM_CNT_LOW_REG);
+    ret_high = heterbox_read(READ_FASTMEM_CNT_HIGH_REG);
+
+    ret = (((u64)ret_high) << 32) | ((u64)ret_low);
+
+    return ret;
+}
+
+u64 get_slowmem_access_cnt(){
+    u64 ret;
+    u32 ret_low, ret_high;
+
+    ret_low = heterbox_read(READ_SLOWMEM_CNT_LOW_REG);
+    ret_high = heterbox_read(READ_SLOWMEM_CNT_HIGH_REG);
+
+    ret = (((u64)ret_high) << 32) | ((u64)ret_low);
+
     return ret;
 }
 

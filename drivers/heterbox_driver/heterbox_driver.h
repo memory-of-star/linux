@@ -48,4 +48,7 @@ void set_cold_scan_period(u32);
 
 u32 pfn_to_device_addr(u32);
 
+u64 get_fastmem_access_cnt(void);
+u64 get_slowmem_access_cnt(void);
+
 #endif 

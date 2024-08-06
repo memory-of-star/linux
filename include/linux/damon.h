@@ -641,6 +641,9 @@ int damon_set_region_biggest_system_ram_default(struct damon_target *t,
 int damon_set_region_numa_node1(struct damon_target *t,
 			unsigned long *start, unsigned long *end);
 
+int damon_set_region_numa_node2(struct damon_target *t,
+			unsigned long *start, unsigned long *end);
+
 #endif	/* CONFIG_DAMON */
 
 #endif	/* _DAMON_H */

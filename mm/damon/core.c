@@ -1526,6 +1526,58 @@ int damon_set_region_numa_node1(struct damon_target *t,
 }
 
 
+int damon_set_region_numa_node2(struct damon_target *t,
+			unsigned long *start, unsigned long *end)
+{
+	unsigned long _start, _end;
+	struct damon_region *newr;
+	struct damon_region *r, *next;
+
+#ifdef PRINT_DEBUG_INFO
+	int n;
+#endif
+
+	damon_for_each_region_safe(r, next, t) {
+		damon_destroy_region(r, t);
+	}
+
+
+	r = damon_first_region(t);
+
+	if (*start > *end)
+		return -EINVAL;
+
+	*start = PFN_PHYS(NODE_DATA(2)->node_start_pfn);
+	*end = PFN_PHYS(NODE_DATA(2)->node_start_pfn + NODE_DATA(2)->node_spanned_pages);
+
+	_start = ALIGN_DOWN(*start, PAGE_SIZE);
+	_end = ALIGN(*end, PAGE_SIZE);
+
+	for (; _start < _end; _start += PAGE_SIZE){
+		newr = damon_new_region(_start, _start + PAGE_SIZE);
+		if (!newr)
+			return -ENOMEM;
+		damon_insert_region(newr, r, damon_next_region(r), t);
+		r = damon_next_region(r);
+	}
+
+// #ifdef PRINT_DEBUG_INFO
+	r = damon_first_region(t);
+	printk("target has %d regions!\n", t->nr_regions);
+	for (n = 0; n < t->nr_regions; n++){
+		if (n >= t->nr_regions - 10 || n <= 10){
+			printk("region %d status:\n", n);
+			printk("start: %ld, end: %ld, size: %ld\n", r->ar.start, r->ar.end, r->ar.end - r->ar.start);
+		}
+		r = damon_next_region(r);
+	}
+	printk("is circle: %d\n", (int)((r->list.next == t->regions_list.next) && (r->list.prev == t->regions_list.prev)));
+// #endif
+
+	return 0;
+}
+
+
 static int __init damon_init(void)
 {
 	damon_region_cache = KMEM_CACHE(damon_region, 0);
