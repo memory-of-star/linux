@@ -2,7 +2,7 @@
 VERSION = 6
 PATCHLEVEL = 6
 SUBLEVEL = 0
-EXTRAVERSION =
+EXTRAVERSION = -cxl_cache_test
 NAME = Hurr durr I'ma ninja sloth
 
 # *DOCUMENTATION*

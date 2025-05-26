@@ -381,12 +381,18 @@ int cxl_dvsec_rr_decode(struct device *dev, int d,
 
 		size = (u64)temp << 32;
 
+		printk("in cxl_dvsec_rr_decode, CXL_DVSEC_RANGE_SIZE_HIGH: %d\n", temp);
+
 		rc = pci_read_config_dword(
 			pdev, d + CXL_DVSEC_RANGE_SIZE_LOW(i), &temp);
 		if (rc)
 			return rc;
 
 		size |= temp & CXL_DVSEC_MEM_SIZE_LOW_MASK;
+
+		printk("in cxl_dvsec_rr_decode, CXL_DVSEC_RANGE_SIZE_LOW: %d\n", temp);
+		printk("in cxl_dvsec_rr_decode, size: %lld\n", size);
+
 		if (!size) {
 			info->dvsec_range[i] = (struct range) {
 				.start = 0,
@@ -402,12 +408,17 @@ int cxl_dvsec_rr_decode(struct device *dev, int d,
 
 		base = (u64)temp << 32;
 
+		printk("in cxl_dvsec_rr_decode, CXL_DVSEC_RANGE_BASE_HIGH: %d\n", temp);
+
 		rc = pci_read_config_dword(
 			pdev, d + CXL_DVSEC_RANGE_BASE_LOW(i), &temp);
 		if (rc)
 			return rc;
 
 		base |= temp & CXL_DVSEC_MEM_BASE_LOW_MASK;
+
+		printk("in cxl_dvsec_rr_decode, CXL_DVSEC_RANGE_BASE_LOW: %d\n", temp);
+		printk("in cxl_dvsec_rr_decode, base: %lld\n", base);
 
 		info->dvsec_range[i] = (struct range) {
 			.start = base,
