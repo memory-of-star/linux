@@ -242,30 +242,30 @@ int __init numa_cleanup_meminfo(struct numa_meminfo *mi)
 	int i, j, k;
 
 	/* first, trim all entries */
-	for (i = 0; i < mi->nr_blks; i++) {
-		struct numa_memblk *bi = &mi->blk[i];
+	// for (i = 0; i < mi->nr_blks; i++) {
+	// 	struct numa_memblk *bi = &mi->blk[i];
 
-		/* move / save reserved memory ranges */
-		if (!memblock_overlaps_region(&memblock.memory,
-					bi->start, bi->end - bi->start)) {
-			numa_move_tail_memblk(&numa_reserved_meminfo, i--, mi);
-			continue;
-		}
+	// 	/* move / save reserved memory ranges */
+	// 	if (!memblock_overlaps_region(&memblock.memory,
+	// 				bi->start, bi->end - bi->start)) {
+	// 		numa_move_tail_memblk(&numa_reserved_meminfo, i--, mi);
+	// 		continue;
+	// 	}
 
-		/* make sure all non-reserved blocks are inside the limits */
-		bi->start = max(bi->start, low);
+	// 	/* make sure all non-reserved blocks are inside the limits */
+	// 	bi->start = max(bi->start, low);
 
-		/* preserve info for non-RAM areas above 'max_pfn': */
-		if (bi->end > high) {
-			numa_add_memblk_to(bi->nid, high, bi->end,
-					   &numa_reserved_meminfo);
-			bi->end = high;
-		}
+	// 	/* preserve info for non-RAM areas above 'max_pfn': */
+	// 	if (bi->end > high) {
+	// 		numa_add_memblk_to(bi->nid, high, bi->end,
+	// 				   &numa_reserved_meminfo);
+	// 		bi->end = high;
+	// 	}
 
-		/* and there's no empty block */
-		if (bi->start >= bi->end)
-			numa_remove_memblk_from(i--, mi);
-	}
+	// 	/* and there's no empty block */
+	// 	if (bi->start >= bi->end)
+	// 		numa_remove_memblk_from(i--, mi);
+	// }
 
 	/* merge neighboring / overlapping entries */
 	for (i = 0; i < mi->nr_blks; i++) {

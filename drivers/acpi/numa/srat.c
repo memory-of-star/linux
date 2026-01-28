@@ -215,21 +215,37 @@ int __init srat_disabled(void)
 void __init acpi_numa_slit_init(struct acpi_table_slit *slit)
 {
 	int i, j;
+	int __distance[16][16] = {{10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20}, 
+							  {20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20},
+							  {20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 10}};
 
-	for (i = 0; i < slit->locality_count; i++) {
+	for (i = 0; i < 16; i++) {
 		const int from_node = pxm_to_node(i);
 
 		if (from_node == NUMA_NO_NODE)
 			continue;
 
-		for (j = 0; j < slit->locality_count; j++) {
+		for (j = 0; j < 16; j++) {
 			const int to_node = pxm_to_node(j);
 
 			if (to_node == NUMA_NO_NODE)
 				continue;
 
-			numa_set_distance(from_node, to_node,
-				slit->entry[slit->locality_count * i + j]);
+			numa_set_distance(from_node, to_node, __distance[i][j]);
+
 		}
 	}
 }
@@ -515,6 +531,19 @@ int __init acpi_numa_init(void)
 		cnt = acpi_table_parse_srat(ACPI_SRAT_TYPE_MEMORY_AFFINITY,
 					    acpi_parse_memory_affinity, 0);
 	}
+
+		/* fake numa node */
+		pr_info("ACPI: HACK: Forcing 16 NUMA nodes to be possible!\n");
+		for (i = 0; i < 16; i++) {
+			if (!node_isset(i, numa_nodes_parsed)) {
+				node_set(i, numa_nodes_parsed);
+				node_set(i, nodes_found_map);
+				
+				if (node_to_pxm_map[i] == PXM_INVAL) {
+					 __acpi_map_pxm_to_node(50 + i, i);
+				}
+			}
+		}
 
 	/* SLIT: System Locality Information Table */
 	acpi_table_parse(ACPI_SIG_SLIT, acpi_parse_slit);

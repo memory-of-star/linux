@@ -1,0 +1,13 @@
+config OPENSUN_DRIVER
+	tristate "OpenSun CXL & Dynamic NUMA Manager"
+	depends on PCI && CONFIGFS_FS
+	help
+	  This driver provides a unified interface for managing Intel CXL devices
+	  and dynamic NUMA nodes via Configfs.
+
+	  It allows user-space to:
+	  1. Access CXL device registers via configfs.
+	  2. Dynamically create NUMA nodes from reserved memory regions.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called opensun_driver.
